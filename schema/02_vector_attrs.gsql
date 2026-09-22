@@ -1,0 +1,38 @@
+// =============================================================================
+// FraudGraph — native vector attributes (TigerVector)
+// =============================================================================
+// Run AFTER 01_schema.gsql. Requires TigerGraph 4.2+.
+// Verify the Savanna workspace version first:  gsql "SHOW VERSION"
+//
+// This is what satisfies the hackathon's "graph AND vector storage" requirement
+// without bolting on a separate vector database.
+//
+// DIMENSION=768 matches Gemini text-embedding-004. If the embedding model
+// changes, this must change with it -- a mismatch fails at upsert, not here.
+// METRIC=COSINE because both embeddings are semantic similarity, not magnitude.
+// INDEXTYPE=HNSW is the default and is built and maintained automatically.
+// =============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE GLOBAL SCHEMA_CHANGE JOB add_vector_attrs {
+  // Policy documents, fraud typologies and regulatory references.
+  // Backs the policy_search tool -> grounds the agent in what it is allowed
+  // to do and what each fraud pattern looks like.
+  ALTER VERTEX DocChunk ADD VECTOR ATTRIBUTE emb(
+    DIMENSION=768,
+    METRIC="COSINE",
+    INDEXTYPE="HNSW"
+  );
+
+  // Case memory. Embedding every closed case summary turns "have we seen this
+  // before?" into a single vectorSearch, which is how the agent reuses prior
+  // analyst decisions and outcomes on new activity.
+  ALTER VERTEX Case ADD VECTOR ATTRIBUTE emb(
+    DIMENSION=768,
+    METRIC="COSINE",
+    INDEXTYPE="HNSW"
+  );
+}
+
+RUN GLOBAL SCHEMA_CHANGE JOB add_vector_attrs

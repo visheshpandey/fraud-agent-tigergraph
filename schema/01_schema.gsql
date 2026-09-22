@@ -1,0 +1,184 @@
+// =============================================================================
+// FraudGraph — core schema
+// =============================================================================
+// Run with:  gsql -f schema/01_schema.gsql     (or src/tg/setup.py)
+//
+// Vertices and edges are created GLOBALLY so that vector attributes can later
+// be attached with a GLOBAL SCHEMA_CHANGE JOB (see 02_vector_attrs.gsql).
+//
+// CONFIRM AGAINST THE DATASET README before loading:
+//   - the customer identifier column (base IEEE-CIS has none; HHGOA adds one)
+//   - the risk score column name
+//   - whether closed-case files carry fields not modelled here
+// Adjust attributes below rather than working around them in the loader.
+// =============================================================================
+
+DROP ALL
+
+// ----------------------------------------------------------------------------
+// Entity vertices — the fraud network
+// ----------------------------------------------------------------------------
+
+CREATE VERTEX Customer (
+  PRIMARY_ID customer_id STRING,
+  first_seen_dt  INT,
+  last_seen_dt   INT,
+  txn_count      INT,
+  total_amount   DOUBLE
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Card (
+  PRIMARY_ID card_id STRING,     // composite of card1..card6
+  card1      INT,
+  card2      INT,
+  card3      INT,
+  card4      STRING,             // network: visa / mastercard / amex / discover
+  card5      INT,
+  card6      STRING,             // type: debit / credit
+  bin        STRING
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Transaction (
+  PRIMARY_ID transaction_id STRING,
+  transaction_dt INT,            // raw TransactionDT (seconds from dataset epoch)
+  txn_datetime   DATETIME,       // derived in ETL for human-readable windows
+  amount         DOUBLE,         // TransactionAmt
+  product_cd     STRING,
+  risk_score     DOUBLE,         // the bank model's score — there is no isFraud flag
+  dist1          INT,
+  dist2          INT
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Device (
+  PRIMARY_ID device_id STRING,   // hash of device_info + os + browser + resolution
+  device_info       STRING,
+  device_type       STRING,      // desktop / mobile
+  os                STRING,
+  browser           STRING,
+  screen_resolution STRING
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX EmailDomain (
+  PRIMARY_ID domain STRING,
+  is_free BOOL
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX BillingRegion (
+  PRIMARY_ID region_id STRING,   // addr1_addr2
+  addr1 INT,
+  addr2 INT
+) WITH primary_id_as_attribute="true"
+
+// ----------------------------------------------------------------------------
+// Knowledge vertices — policy, typologies, and the agent's own record
+// ----------------------------------------------------------------------------
+
+CREATE VERTEX FraudPattern (
+  PRIMARY_ID pattern_id STRING,
+  name        STRING,
+  description STRING,
+  indicators  STRING,            // JSON array, parsed agent-side
+  severity    STRING
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX DocChunk (
+  PRIMARY_ID chunk_id STRING,
+  doc_name STRING,
+  doc_type STRING,               // policy / typology / regulation
+  section  STRING,
+  text     STRING,
+  ordinal  INT
+) WITH primary_id_as_attribute="true"
+
+// A Case is both the agent's working record and, once closed, its memory.
+// nba_before / nba_after are REQUIRED by the brief: the next best action and
+// approval route must be recorded both before additional evidence is requested
+// and after it is received.
+CREATE VERTEX Case (
+  PRIMARY_ID case_id STRING,
+  status                STRING,  // open / investigating / awaiting_evidence / closed
+  trigger_type          STRING,  // risk_score / customer_report / analyst_request
+  fraud_type            STRING,
+  risk_level            STRING,  // low / medium / high / critical
+  confidence            DOUBLE,  // 0..1
+  evidence_gaps         STRING,  // JSON array
+  summary               STRING,
+  reasoning             STRING,
+  nba_before            STRING,  // JSON array of actions
+  approval_route_before STRING,
+  nba_after             STRING,  // JSON array of actions
+  approval_route_after  STRING,
+  sar_required          BOOL,
+  outcome               STRING,  // confirmed_fraud / cleared  (closed cases)
+  is_historical         BOOL,    // true for the months 1-4 closed investigations
+  opened_at             DATETIME,
+  updated_at            DATETIME,
+  closed_at             DATETIME
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Evidence (
+  PRIMARY_ID evidence_id STRING,
+  kind         STRING,           // graph_query / policy / prior_case / customer_response
+  source       STRING,           // the tool or actor that produced it
+  content      STRING,
+  round        INT,              // which evidence-gathering round produced it
+  collected_at DATETIME
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Action (
+  PRIMARY_ID action_id STRING,
+  action_type    STRING,         // block_txn / block_account / warn_customer / escalate / ...
+  status         STRING,         // recommended / approved / executed / rejected
+  approval_route STRING,         // auto / analyst / dual
+  phase          STRING,         // before_evidence / after_evidence
+  rationale      STRING,
+  created_at     DATETIME
+) WITH primary_id_as_attribute="true"
+
+// ----------------------------------------------------------------------------
+// Structural edges — UNDIRECTED so the agent can traverse either way cheaply
+// (a Device must reach its Transactions as easily as the reverse)
+// ----------------------------------------------------------------------------
+
+CREATE UNDIRECTED EDGE OWNS        (FROM Customer,    TO Card)
+CREATE UNDIRECTED EDGE MADE        (FROM Card,        TO Transaction)
+CREATE UNDIRECTED EDGE FROM_DEVICE (FROM Transaction, TO Device)
+CREATE UNDIRECTED EDGE BILLED_IN   (FROM Transaction, TO BillingRegion)
+CREATE UNDIRECTED EDGE USES_EMAIL  (FROM Transaction, TO EmailDomain,
+                                    role STRING)       // purchaser / recipient
+
+// Temporal chain per card — direction is meaningful, so keep it directed
+CREATE DIRECTED EDGE NEXT (FROM Transaction, TO Transaction,
+                           gap_seconds INT) WITH REVERSE_EDGE="PREV"
+
+// ----------------------------------------------------------------------------
+// Case edges
+// ----------------------------------------------------------------------------
+
+CREATE DIRECTED EDGE INVOLVES_CUSTOMER (FROM Case, TO Customer)    WITH REVERSE_EDGE="CUSTOMER_IN_CASE"
+CREATE DIRECTED EDGE INVOLVES_CARD     (FROM Case, TO Card)        WITH REVERSE_EDGE="CARD_IN_CASE"
+CREATE DIRECTED EDGE INVOLVES_TXN      (FROM Case, TO Transaction) WITH REVERSE_EDGE="TXN_IN_CASE"
+CREATE DIRECTED EDGE HAS_EVIDENCE      (FROM Case, TO Evidence)    WITH REVERSE_EDGE="EVIDENCE_OF"
+CREATE DIRECTED EDGE RECOMMENDS        (FROM Case, TO Action)      WITH REVERSE_EDGE="ACTION_OF"
+
+CREATE DIRECTED EDGE MATCHES (FROM Case, TO FraudPattern,
+                              score DOUBLE) WITH REVERSE_EDGE="MATCHED_BY"
+
+// Populated from Case.emb vector search — makes case memory traversable as graph
+CREATE DIRECTED EDGE SIMILAR_TO (FROM Case, TO Case,
+                                 similarity DOUBLE) WITH REVERSE_EDGE="SIMILAR_FROM"
+
+// Links a typology to the policy text that defines it. This is what makes the
+// retrieval layer GraphRAG rather than plain vector RAG: a vector hit on a
+// DocChunk traverses to the structured pattern, and vice versa.
+CREATE DIRECTED EDGE PATTERN_DOC (FROM FraudPattern, TO DocChunk) WITH REVERSE_EDGE="DOC_PATTERN"
+
+// ----------------------------------------------------------------------------
+
+CREATE GRAPH FraudGraph (
+  Customer, Card, Transaction, Device, EmailDomain, BillingRegion,
+  FraudPattern, DocChunk, Case, Evidence, Action,
+  OWNS, MADE, FROM_DEVICE, BILLED_IN, USES_EMAIL, NEXT,
+  INVOLVES_CUSTOMER, INVOLVES_CARD, INVOLVES_TXN,
+  HAS_EVIDENCE, RECOMMENDS, MATCHES, SIMILAR_TO, PATTERN_DOC
+)

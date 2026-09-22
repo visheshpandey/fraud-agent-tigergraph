@@ -21,6 +21,11 @@
 **Next action:** download the HHGOA_IEEE dataset to `data/raw/`, then read its README
 **Blocked on:** dataset download (manual) · Savanna workspace · Gemini key check
 
+**Written but NOT yet run against a live instance:** `schema/01_schema.gsql`,
+`schema/02_vector_attrs.gsql`. They are drafted from the known IEEE-CIS column structure
+and must be reconciled with the dataset README (customer id column, risk score column
+name) before loading. Do not tick Phase 2 until they execute cleanly on Savanna.
+
 ---
 
 ## Live config
@@ -64,8 +69,8 @@ Values go in `.env` (gitignored) — this table only tracks *whether* each is es
 - [x] Directory structure created
 - [x] `PLAN.md` written
 - [x] `EXECUTION.md` written
-- [ ] `git init` + `.gitignore` (`data/`, `.env`, `__pycache__/`, `out/`, `.venv/`)
-- [ ] First commit
+- [x] `git init` + `.gitignore` (`data/`, `.env`, `__pycache__/`, `out/`, `.venv/`)
+- [x] First commit
 - [ ] venv + install: `pyTigerGraph`, `tigergraph-mcp`, `langgraph`,
       `langchain-mcp-adapters`, `streamlit`, `python-dotenv`;
       **upgrade `google-genai` (0.3.0 installed, is old)**
@@ -76,8 +81,10 @@ Values go in `.env` (gitignored) — this table only tracks *whether* each is es
 
 ## Phase 2 — Graph + data
 
-- [ ] `schema/01_schema.gsql` — vertices + edges created
-- [ ] `schema/02_vector_attrs.gsql` — `DocChunk.emb`, `Case.emb` (768, COSINE)
+- [~] `schema/01_schema.gsql` — **drafted, not yet run.** Reconcile with README first
+- [~] `schema/02_vector_attrs.gsql` — **drafted, not yet run.** Needs TigerGraph 4.2+
+- [ ] Verify workspace version (`SHOW VERSION`) supports vector attributes
+- [ ] Both schema scripts execute cleanly against Savanna
 - [ ] `src/prep/` ETL — **`usecols` to drop V1–V339, downcast dtypes, chunked reads (8 GB RAM)**
 - [ ] Derived dimension CSVs → `data/derived/`
 - [ ] `schema/03_loading_jobs.gsql` — loading jobs (**not** DataFrame upserts for bulk)
