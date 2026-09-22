@@ -1,0 +1,123 @@
+// =============================================================================
+// FraudGraph — loading jobs for data/derived/*.csv
+// =============================================================================
+// Run AFTER 01_schema.gsql and 02_vector_attrs.gsql. Executed via
+// src/tg/load.py (conn.runLoadingJobWithFile), which uploads each local CSV
+// and binds it to the matching FILENAME variable below in one call — bulk CSV
+// loading is far faster than per-row DataFrame upserts at this row count
+// (590k transactions), per PLAN.md.
+//
+// Columns are referenced POSITIONALLY ($0, $1, ...) rather than by header name
+// — header-name references ($"col") require a DEFINE HEADER clause resolved
+// at compile time, and since we control the exact column order of every
+// derived CSV (src/prep/etl.py), positional refs are simpler and avoid that
+// extra ceremony. Each LOAD statement's leading comment documents the source
+// file's column order for anyone editing etl.py's output shape later.
+//
+// SET<STRING> vertex ATTRIBUTES (txn_ids, connected_card_ids on ClosedCase) use
+// SPLIT($col, "|") since the source CSVs pipe-delimit multi-value fields — that
+// works, and is the documented pattern, for a single multi-valued attribute.
+//
+// It does NOT work for fanning a pipe-delimited column into multiple EDGES:
+// `VALUES($0, SPLIT($8, "|"))` on an edge silently loaded the whole pipe-joined
+// string as one malformed vertex id per row instead of one edge per element
+// (confirmed by inspection — caught ~2,107 stray Transaction vertices this
+// way on the first load). So INVOLVES and CONNECTED_TO load from pre-exploded
+// flat (case_id, target_id) CSVs built in Python instead (src/prep/etl.py's
+// build_closed_case_edges) — the same one-row-one-edge shape as next_edges.csv,
+// which loaded cleanly on the first try.
+// =============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE LOADING JOB load_fraud_graph FOR GRAPH FraudGraph {
+
+  DEFINE FILENAME f_customers;
+  DEFINE FILENAME f_cards;
+  DEFINE FILENAME f_transactions;
+  DEFINE FILENAME f_devices;
+  DEFINE FILENAME f_email_domains;
+  DEFINE FILENAME f_billing_regions;
+  DEFINE FILENAME f_next_edges;
+  DEFINE FILENAME f_closed_cases;
+  DEFINE FILENAME f_cc_txn_edges;
+  DEFINE FILENAME f_cc_card_edges;
+
+  // ---- vertices --------------------------------------------------------
+
+  // customers.csv: customer_id
+  LOAD f_customers TO VERTEX Customer VALUES ($0) USING separator=",";
+
+  // cards.csv: card_id,customer_id,card1,card2,card3,card4,card5,card6
+  LOAD f_cards TO VERTEX Card VALUES ($0, $2, $3, $4, $5, $6, $7)
+    USING separator=",";
+
+  // transactions.csv: transaction_id,transaction_dt,ts,amount,product_cd,channel,
+  //                    risk_score,addr1,addr2,dist1,dist2,p_emaildomain,r_emaildomain,
+  //                    customer_id,card_id,device_id
+  LOAD f_transactions TO VERTEX Transaction VALUES (
+    $0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+  ) USING separator=",";
+
+  // devices.csv: device_id,device_info,device_type,os,browser,screen_res,proxy_flag,is_new
+  LOAD f_devices TO VERTEX DeviceProfile VALUES ($0, $1, $2, $3, $4, $5, $6, $7)
+    USING separator=",";
+
+  // email_domains.csv: domain
+  LOAD f_email_domains TO VERTEX EmailDomain VALUES ($0) USING separator=",";
+
+  // billing_regions.csv: region_id,addr1,addr2
+  LOAD f_billing_regions TO VERTEX BillingRegion VALUES ($0, $1, $2)
+    USING separator=",";
+
+  // closed_cases.csv: case_id,customer_id,card_id,opened_at,closed_at,outcome,pattern,
+  //                    first_fraud_txn_id,txn_ids,n_txns,exposure_usd,connected_card_ids,
+  //                    actions_taken,report_filed,analyst_notes
+  LOAD f_closed_cases TO VERTEX ClosedCase VALUES (
+    $0, $1, $2, $3, $4, $5, $6, $7, SPLIT($8, "|"), $9, $10, SPLIT($11, "|"), $12, $13, $14
+  ) USING separator=",";
+
+  // ---- edges -------------------------------------------------------------
+
+  LOAD f_transactions TO EDGE OWNS VALUES ($13, $14)
+    USING separator=",";
+
+  LOAD f_transactions TO EDGE MADE VALUES ($14, $0)
+    USING separator=",";
+
+  LOAD f_transactions TO EDGE FROM_DEVICE VALUES ($0, $15)
+    WHERE $15 != ""
+    USING separator=",";
+
+  LOAD f_transactions TO EDGE PURCHASER_EMAIL VALUES ($0, $11)
+    WHERE $11 != ""
+    USING separator=",";
+
+  LOAD f_transactions TO EDGE RECIPIENT_EMAIL VALUES ($0, $12)
+    WHERE $12 != ""
+    USING separator=",";
+
+  LOAD f_transactions TO EDGE BILLED_IN VALUES ($0, $7)
+    WHERE $7 != ""
+    USING separator=",";
+
+  // next_edges.csv: from_txn,to_txn,gap_seconds
+  LOAD f_next_edges TO EDGE NEXT VALUES ($0, $1, $2)
+    USING separator=",";
+
+  // Multi-pair edges (ClosedCase|InvestigationCase -> X) need an explicit
+  // vertex-type hint on the FROM column since the pair is otherwise ambiguous.
+  LOAD f_closed_cases TO EDGE ON_CARD VALUES ($0 ClosedCase, $2)
+    USING separator=",";
+
+  LOAD f_closed_cases TO EDGE INVOLVES_CUSTOMER VALUES ($0 ClosedCase, $1)
+    USING separator=",";
+
+  // closed_case_txn_edges.csv: case_id,txn_id  (pre-exploded in Python)
+  LOAD f_cc_txn_edges TO EDGE INVOLVES VALUES ($0 ClosedCase, $1)
+    USING separator=",";
+
+  // closed_case_card_edges.csv: case_id,card_id  (pre-exploded in Python)
+  LOAD f_cc_card_edges TO EDGE CONNECTED_TO VALUES ($0 ClosedCase, $1)
+    USING separator=",";
+}

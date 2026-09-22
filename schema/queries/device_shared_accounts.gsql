@@ -1,0 +1,23 @@
+// One device used by many customers/cards is the single strongest account-
+// takeover / ring signal in this dataset — this is the query behind it.
+USE GRAPH FraudGraph
+
+CREATE QUERY device_shared_accounts(STRING device_id) FOR GRAPH FraudGraph {
+  SetAccum<STRING> @@card_ids;
+  SetAccum<STRING> @@customer_ids;
+
+  Start = {DeviceProfile.*};
+  Start = SELECT d FROM Start:d WHERE d.device_id == device_id;
+
+  Txns = SELECT t FROM Start:d -(FROM_DEVICE:e)- Transaction:t;
+
+  Cards = SELECT c FROM Txns:t -(MADE:e)- Card:c
+          ACCUM @@card_ids += c.card_id;
+
+  Customers = SELECT cu FROM Cards:c -(OWNS:e)- Customer:cu
+              ACCUM @@customer_ids += cu.customer_id;
+
+  PRINT @@card_ids, @@customer_ids;
+}
+
+INSTALL QUERY device_shared_accounts

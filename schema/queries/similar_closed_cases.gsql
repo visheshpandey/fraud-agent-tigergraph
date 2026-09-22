@@ -1,0 +1,13 @@
+// Case memory: vectorSearch over ClosedCase.emb. This is what makes "retrieve
+// similar past cases" a single graph call instead of a separate vector store
+// — the requirement PLAN.md calls the centerpiece of the design.
+USE GRAPH FraudGraph
+
+CREATE QUERY similar_closed_cases(LIST<FLOAT> query_vector, INT k=3) FOR GRAPH FraudGraph SYNTAX v3 {
+  MapAccum<VERTEX, FLOAT> @@distances;
+  Results = vectorSearch({ClosedCase.emb}, query_vector, k, {distance_map: @@distances});
+  PRINT Results WITH VECTOR;
+  PRINT @@distances;
+}
+
+INSTALL QUERY similar_closed_cases

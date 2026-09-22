@@ -1,0 +1,20 @@
+// Recent transactions on a card, most recent first. Time-windowing (velocity
+// checks, amount-anomaly scoring) is computed agent-side in Python from this
+// list rather than in GSQL — DATETIME arithmetic inside GSQL is fragile to
+// get right blind, and the agent already has the full row set to reason over.
+USE GRAPH FraudGraph
+
+CREATE QUERY card_transaction_window(STRING card_id, INT limit_n=50) FOR GRAPH FraudGraph {
+  SetAccum<STRING> @@txn_ids;
+
+  Start = {Card.*};
+  Start = SELECT c FROM Start:c WHERE c.card_id == card_id;
+
+  Txns = SELECT t FROM Start:c -(MADE:e)- Transaction:t
+         ORDER BY t.ts DESC
+         LIMIT limit_n;
+
+  PRINT Txns;
+}
+
+INSTALL QUERY card_transaction_window

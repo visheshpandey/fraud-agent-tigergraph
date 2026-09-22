@@ -1,0 +1,31 @@
+// Baseline profile for a customer: card count, total activity, and the set
+// of devices/regions they've transacted from — the "what's normal for this
+// person" reference the assess step compares a flagged transaction against.
+USE GRAPH FraudGraph
+
+CREATE QUERY customer_profile(STRING customer_id) FOR GRAPH FraudGraph {
+  SumAccum<INT> @@txn_count;
+  SumAccum<DOUBLE> @@total_amount;
+  SetAccum<STRING> @@card_ids;
+  SetAccum<STRING> @@device_ids;
+  SetAccum<STRING> @@billing_region_ids;
+
+  Start = {Customer.*};
+  Start = SELECT c FROM Start:c WHERE c.customer_id == customer_id;
+
+  Cards = SELECT card FROM Start:c -(OWNS:e)- Card:card
+          ACCUM @@card_ids += card.card_id;
+
+  Txns = SELECT t FROM Cards:card -(MADE:e)- Transaction:t
+         ACCUM @@txn_count += 1, @@total_amount += t.amount;
+
+  Devices = SELECT d FROM Txns:t -(FROM_DEVICE:e)- DeviceProfile:d
+            ACCUM @@device_ids += d.device_id;
+
+  Regions = SELECT r FROM Txns:t -(BILLED_IN:e)- BillingRegion:r
+            ACCUM @@billing_region_ids += r.region_id;
+
+  PRINT @@txn_count, @@total_amount, @@card_ids, @@device_ids, @@billing_region_ids;
+}
+
+INSTALL QUERY customer_profile

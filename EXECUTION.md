@@ -17,17 +17,25 @@
 ## Current State
 
 **Last updated:** 2026-09-22
-**Phase:** 2 — schema is LIVE on Savanna (9 vertex types, all edges, 2 vector attributes
-confirmed via `conn.getVertexTypes()`). Agent skeleton (Phase 5) already matches the exact
-answer format.
-**Next action:** ETL — `src/prep/` to turn `data/raw/*.csv` into loadable derived CSVs, then
-`schema/03_loading_jobs.gsql` to bulk-load them
+**Phase:** 3 done, entering 4 — full dataset is LOADED and VERIFIED on Savanna (counts below
+match expected exactly); 6 GSQL agent-tool queries installed; Phase 5 agent skeleton already
+matches the exact answer format.
+**Next action:** Phase 4 — chunk the Fraud Policy + 5 patterns text, embed via Gemini
+(`gemini-embedding-001`, truncated to 768 dim), load into `DocChunk.emb`; embed closed-case
+narratives into `ClosedCase.emb`
 **Blocked on:** nothing — clear to proceed
 
-**Written but NOT yet run against a live instance:** `schema/01_schema.gsql`,
-`schema/02_vector_attrs.gsql`. They are drafted from the known IEEE-CIS column structure
-and must be reconciled with the dataset README (customer id column, risk score column
-name) before loading. Do not tick Phase 2 until they execute cleanly on Savanna.
+**Live graph verified (2026-09-22):**
+```
+Customer 13553 · Card 14322 · Transaction 590742 · DeviceProfile 9774
+EmailDomain 60 · BillingRegion 332 · ClosedCase 5565 · InvestigationCase 0 · DocChunk 0
+OWNS 14318 · MADE 590742 · FROM_DEVICE 140784 · PURCHASER_EMAIL 496262
+RECIPIENT_EMAIL 137453 · BILLED_IN 525003 · NEXT 576424 · ON_CARD 5565
+INVOLVES 14955 · INVOLVES_CUSTOMER 5565 · CONNECTED_TO 96
+```
+Transaction count matches raw file exactly (590,742). Card count is 14,322 vs our own
+dedup's 14,318 — 4 extra, traced to legitimate sparse source data (some cards genuinely
+lack card4/card6 in Vesta's original columns), not a loading bug; not worth chasing further.
 
 ---
 
@@ -42,8 +50,8 @@ Values go in `.env` (gitignored) — this table only tracks *whether* each is es
 | TigerGraph version | [x] | **4.2.5** — supports vector attributes |
 | Graph name | [x] | `FraudGraph` (in `.env`, not yet created on the server — schema not run yet) |
 | Gemini API key | [x] | verified live via `google.generativeai` — `gemini-3.6-flash` responds. **Note:** that package is deprecated upstream; use `google-genai` (already installed) for real integration, not `google.generativeai` |
-| Gemini models | ☐ | reasoning model TBD + `text-embedding-004` (768 dim) — not yet wired into `src/agent/llm.py` |
-| MCP allowlist | ☐ | `TG_ALLOWED_TOOLS` — prevents the ~29k token blowup |
+| Gemini models | [x] | **`gemini-3.6-flash`** for reasoning (chat), **`gemini-embedding-001`** truncated to 768 dim via `output_dimensionality=768` for embeddings — `text-embedding-004` from PLAN.md is deprecated/404. Neither wired into `src/agent/llm.py` yet (still stubbed) |
+| MCP allowlist | ☐ | `TG_ALLOWED_TOOLS` — prevents the ~29k token blowup. Not started — no MCP server running yet |
 
 ---
 
@@ -109,20 +117,15 @@ R7 disputed-but-matches-own-recurring-pattern → create_case+verify+warn, never
 uncertain verdict + exposure>$500 or conflicting evidence → escalate_to_analyst; R9 undocumented
 coordinated pattern → create_case+file_report+escalate, describe in own words; R10 never
 BLOCK_ALL_CARDS unless 2+ cards confirmed fraud or credentials confirmed compromised.
-**`src/agent/nodes.py::decision_matrix` must be rewritten against these rules, not the generic
-matrix currently in place.**
+**Done:** `src/agent/nodes.py::decision_matrix` implements R1-R10 as code; verified against
+3 mock scenarios including one where `initial_actions` → `final_actions` changes.
 
 **Stopping rule (exact):** stop when fraud probability ≥0.85 or ≤0.15 with 2+ independent
 evidence pieces, OR a verification response settles it, OR further steps won't change the
 decision (state why in `stop_reason`).
 
-**Suggested schema (README's, ours diverges — reconcile):** vertices `Customer`, `Card`,
-`Transaction`, `DeviceProfile` (not our `Device`), `EmailDomain`, `BillingRegion`, `ClosedCase`
-(README treats this as its own vertex type, not folded into `Case`). Edges:
-`Customer-OWNS->Card`, `Card-MADE->Transaction`, `Transaction-FROM_DEVICE->DeviceProfile`,
-`Transaction-PURCHASER_EMAIL->EmailDomain` (not our `USES_EMAIL`), `Transaction-BILLED_IN->
-BillingRegion`, `Transaction-NEXT->Transaction`, `ClosedCase-INVOLVES->Transaction`,
-`ClosedCase-ON_CARD->Card`, `ClosedCase-CONNECTED_TO->Card`.
+**Suggested schema — DONE, reconciled and live.** See Phase 2 below for what changed
+(3 reserved-keyword renames, InvestigationCase vocabulary, multi-pair edges).
 
 **Vector store target:** load closed-case narratives + this README's pattern section + the
 policy + regulatory PDFs (FinCEN/FATF/FFIEC/OFAC, links in README) into vector search —
@@ -148,11 +151,13 @@ all need rework to match this exact vocabulary before Phase 2/6 can proceed corr
 - [x] `EXECUTION.md` written
 - [x] `git init` + `.gitignore` (`data/`, `.env`, `__pycache__/`, `out/`, `.venv/`)
 - [x] First commit
-- [ ] venv + install: `pyTigerGraph`, `tigergraph-mcp`, `langgraph`,
-      `langchain-mcp-adapters`, `streamlit`, `python-dotenv`;
-      **upgrade `google-genai` (0.3.0 installed, is old)**
-- [ ] `src/tg/connection.py` — connection helper reading `.env`
-- [ ] Smoke test: `conn.echo()` succeeds
+- [x] venv + install: `pyTigerGraph` 2.0.4, `python-dotenv`. `langgraph`/`pydantic` installed
+      earlier for the agent skeleton. **Still missing:** `tigergraph-mcp`, `langchain-mcp-adapters`,
+      `streamlit`. `google-genai` 0.3.0 still not upgraded — using deprecated
+      `google.generativeai` for now since it's the one confirmed working (see Live config)
+- [x] `src/tg/connection.py` — works, but had to work around a pyTigerGraph 2.0.4 bug
+      (see Phase 2 note below) rather than using `getToken()` directly
+- [x] Smoke test: `conn.echo()` succeeds — returns `"Hello GSQL"`
 
 ---
 
@@ -178,11 +183,44 @@ regardless of the `authMode` argument, and Savanna rejects that header before th
 the body is even checked. Fix: fetch the JWT manually (`POST {host}/gsql/v1/tokens` with
 `{"secret": ..., "lifetime": ...}` via `requests`) and construct `TigerGraphConnection(host=,
 graphname=, apiToken=<jwt>)` directly. Implemented in `src/tg/connection.py`.
-- [ ] `src/prep/` ETL — **`usecols` to drop V1–V339, downcast dtypes, chunked reads (8 GB RAM)**
-- [ ] Derived dimension CSVs → `data/derived/`
-- [ ] `schema/03_loading_jobs.gsql` — loading jobs (**not** DataFrame upserts for bulk)
-- [ ] Data loaded; **vertex/edge counts match derived CSV row counts**
-- [ ] `Transaction-NEXT->Transaction` temporal chains built
+- [x] `src/prep/etl.py` — `usecols` drops V1-V339/C*/D*/M*, downcast dtypes. Ran fine on 8GB
+      RAM without chunking (column subset keeps it small despite the 708MB raw file)
+- [x] Derived CSVs → `data/derived/`: customers, cards, transactions, devices, email_domains,
+      billing_regions, next_edges, closed_cases, closed_case_txn_edges, closed_case_card_edges
+- [x] `schema/03_loading_jobs.gsql` — loading jobs via `conn.runLoadingJobWithFile`, chunked
+      (50k rows/chunk) with retry for the two large files (transactions, next_edges) — a
+      single synchronous POST for the full file hit an SSL EOF from Savanna's proxy
+- [x] Data loaded; **vertex/edge counts verified exactly matching expected** — see the table
+      in Current State above
+- [x] `Transaction-NEXT->Transaction` temporal chains built — 576,424 edges, verified
+
+**Card-id derivation limitation (documented, not fixable from public data):** which
+`(card1..card6)` tuples constitute "the same physical card" is not reliably deducible —
+empirically, a case-pack customer's flagged transaction shares an identical
+`(card1,card4,card6)` with a transaction group case_pack does NOT label the same card, and
+card2/3/5 nulling doesn't correlate with card identity either (known Vesta missingness
+artifact, independent of card identity). Resolved by grouping on `(customer_id, card1,
+card4, card6)` as a best-effort partition, then **overriding with the authoritative
+`card_id` from `case_pack.csv`/`closed_cases_history.csv`** wherever a transaction is named
+there — verified **0 mismatches across all 20 exam cases**. Unlabeled cards get our own
+`-K{n}` suffix (documented in `src/prep/etl.py`'s module docstring).
+
+**Two GSQL/pyTigerGraph bugs found and fixed while loading (both cost real debugging time,
+both now fixed and documented in the affected files' comments):**
+1. `conn.getToken(secret)` fails with "User authentication failed" — pyTigerGraph 2.0.4's
+   `_prep_req` attaches a default `tigergraph`/`tigergraph` Basic-auth header to the token
+   request itself regardless of the `authMode` argument, and Savanna rejects that header
+   before the secret in the body is even checked. **Fix:** fetch the JWT manually
+   (`POST {host}/gsql/v1/tokens`) and construct `TigerGraphConnection(..., apiToken=<jwt>)`
+   directly — `src/tg/connection.py`.
+2. `SPLIT($col, "|")` inline in an edge's `VALUES(...)` does **not** fan out into multiple
+   edges the way it does for a SET-typed vertex *attribute* — it silently loaded the entire
+   pipe-joined string as one malformed vertex id (caught ~2,107 stray `Transaction`
+   vertices this way on the first attempt). **Fix:** explode multi-value columns into flat
+   `(case_id, target_id)` CSVs in Python (`src/prep/etl.py::build_closed_case_edges`) and
+   load those with plain one-row-one-edge statements — `schema/03_loading_jobs.gsql`.
+3. Also: `runLoadingJobWithFile` explicitly does not honor `USING header="true"` — the
+   header row must be stripped from the file before upload or it loads as a garbage row.
 
 ---
 
@@ -190,18 +228,36 @@ graphname=, apiToken=<jwt>)` directly. Implemented in `src/tg/connection.py`.
 
 Pre-install all. **`INSTALL QUERY` takes minutes each and must never run at demo time.**
 
-- [ ] `card_transaction_window`
-- [ ] `customer_profile`
-- [ ] `device_shared_accounts`
-- [ ] `email_shared_cards`
-- [ ] `fraud_ring_component`
-- [ ] `velocity_check`
-- [ ] `amount_anomaly`
-- [ ] `similar_closed_cases` *(vectorSearch over `Case.emb`)*
-- [ ] `policy_search` *(vectorSearch over `DocChunk.emb`)*
-- [ ] `write_case` / `append_evidence` / `record_action`
-- [ ] Ring algorithms exercised via `CALL GDBMS_ALGO.*` (louvain / wcc / k_core / pagerank)
-- [ ] **Every query hand-run with a real seed before the agent may call it**
+- [x] `card_transaction_window` — installed. Deliberately returns N most-recent txns rather
+      than doing DATETIME arithmetic in GSQL; velocity/amount-anomaly windowing is computed
+      agent-side in Python from this list
+- [x] `customer_profile` — installed
+- [x] `device_shared_accounts` — installed
+- [x] `fraud_ring_component` — installed. Simplified to a fixed 2-hop device-based traversal
+      rather than an open-ended WHILE-loop BFS (safer to get right without live debugging
+      time); cross-references `ClosedCase` via the `CASE_ON_CARD` reverse edge for known-fraud
+      flagging
+- [x] `similar_closed_cases` *(vectorSearch over `ClosedCase.emb`, SYNTAX v3)* — installed,
+      **not yet smoke-tested** (no embeddings loaded yet — that's Phase 4)
+- [x] `policy_search` *(vectorSearch over `DocChunk.emb`, SYNTAX v3)* — installed, same caveat
+- [ ] ~~`email_shared_cards`~~ / ~~`velocity_check`~~ / ~~`amount_anomaly`~~ — **descoped.**
+      Computed as Python-side derived signals from `card_transaction_window` +
+      `customer_profile` output instead of separate GSQL queries — avoids fragile GSQL
+      DATETIME/aggregation logic for marginal benefit over doing it in the agent
+- [ ] ~~`write_case` / `append_evidence` / `record_action`~~ — **descoped as GSQL queries.**
+      Will be plain `conn.upsertVertex()` calls from Python (simpler and better-tested than
+      GSQL `INSERT INTO` DML under time pressure) — not yet implemented
+- [ ] Ring algorithms via `CALL GDBMS_ALGO.*` (louvain / wcc / k_core / pagerank) — not started;
+      `fraud_ring_component`'s 2-hop traversal covers the minimum viable ring signal for now
+- [x] **Every query hand-run with a real seed before the agent may call it** —
+      `card_transaction_window` and `customer_profile` verified against real customer C09933
+      (2,792 txns, 128 devices, 32 billing regions — all plausible); `device_shared_accounts`
+      verified against a real device shared by 5 customers; `fraud_ring_component` verified
+      but found noisy for high-activity cards (100+ devices → hundreds of "connected" cards
+      with no ranking) — added a `LIMIT 100` cap as a stopgap; **flagging that this query
+      needs real tuning (e.g. restrict to devices marked "new"/suspicious, or rank by shared-
+      device frequency) before it's a reliable ring signal, not just a working query.**
+      `similar_closed_cases`/`policy_search` still untested — no embeddings loaded yet
 
 ---
 
