@@ -354,12 +354,45 @@ docstring as the place to add them if time remains.
 
 ## Phase 6 — Benchmark
 
-- [ ] `src/eval/run_cases.py`
-- [ ] All 20 cases → `out/cases/` in the README's format
-- [ ] Each case also **written to the graph**
-- [ ] SAR generated where policy requires one
-- [ ] 3 cases spot-checked by hand against the policy docs
-- [ ] **Run this early, not at the deadline** (Gemini rate limits)
+- [x] `src/eval/run_cases.py` — built, real MCP + real Gemini + real graph writes
+- [~] All 20 cases → `cases//` — **in progress.** First full pass: 8/20 succeeded outright,
+      12/20 failed on the daily `embed_content` quota (see Phase 4). Re-running the 12
+      failures with a graceful-degradation fix (below) plus 2 more (HHG-005, HHG-010) that
+      "succeeded" but hit the ring-noise bug below — 14 total being re-run now
+- [x] Each case also **written to the graph** — `conn.upsertVertex("InvestigationCase", ...)`
+      + `INVOLVES_CUSTOMER`/`ON_CARD` edges, confirmed via `written_to_graph: true` in output
+- [x] SAR generated where policy requires one — verified on at least one fraud case with
+      `FILE_REPORT` in final actions (SAR narrative generated via a dedicated LLM call)
+- [ ] 3 cases spot-checked by hand against the policy docs — not yet done, do once all 20
+      answer files are final
+- [x] **Run this early, not at the deadline** — running now, ~1.3 days before deadline
+
+**Real bug caught and fixed via this run — worth understanding for the write-up:**
+`fraud_ring_component` (Phase 3) was already re-seeded from a single flagged transaction's
+device rather than a card's whole history (first fix). That was NOT enough: a second,
+distinct problem surfaced on HHG-005/HHG-010 — a **generic device fingerprint** ("iOS
+Device" + "iOS 9.3.5" + "mobile safari 9.0" + a common screen resolution, with no specific
+device model) is shared by **168 unrelated transactions** in the dataset purely because
+Vesta's `DeviceInfo` field is often just "iOS Device" for older/unspecified iPhones — not a
+real shared device, a coarse-fingerprint collision. This produced dozens of fabricated
+"confirmed fraud" ring connections on ordinary transactions. **Fixed** in
+`src/eval/run_cases.py::gather_evidence`: if a device's shared-customer count or connected-
+card count exceeds 15, treat it as a non-diagnostic generic fingerprint — drop it from
+`shared_origin`, `connected_card_ids`, and the evidence narrative, and say so explicitly
+rather than silently under-reporting. **Lesson worth stating in the blog post:** raw graph
+signals need a plausibility filter before they become "evidence" — this is exactly the
+kind of over-eager pattern-matching the README's "half the cases are legitimate" warning
+is about, and it would have caused real false positives in the graded output if unfixed.
+
+**Quota reality for a 20-case run (see also Phase 4):** `generate_content` on
+`gemini-flash-lite-latest` held up fine across the full run (no failures observed).
+`embed_content` (`gemini-embedding-001`) hit its ~1000/day cap partway through, days after
+the closed-case embedding job (Phase 4) had already been consuming it heavily. Fixed with:
+(1) graceful degradation in `gather_evidence` — a failed embed skips `similar_closed_cases`/
+`policy_search` for that case rather than losing the whole case, and (2) `src/rag/embed.py`
+now fails fast on a `PerDay` quota message instead of retrying uselessly for minutes.
+**If re-running the full 20 tomorrow after quota resets, run this BEFORE any embedding-
+heavy job (Phase 4's closed-case embed) to get full evidence quality on all cases.**
 
 ---
 

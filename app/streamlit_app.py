@@ -1,6 +1,6 @@
 """Analyst dashboard for the fraud investigation agent.
 
-Reads the graded answer files from out/cases/*.json (produced by
+Reads the graded answer files from cases/*.json (produced by
 src/eval/run_cases.py) — no live agent calls happen here, this is purely a
 viewer over already-investigated cases, which keeps it usable even while a
 benchmark run is still in progress or the API quota is exhausted.
@@ -17,7 +17,7 @@ import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES_DIR = ROOT / "out" / "cases"
+CASES_DIR = ROOT / "cases"  # the graded answer files, per the README
 CASE_PACK = ROOT / "data" / "raw" / "case_pack.csv"
 
 st.set_page_config(page_title="Fraud Investigation Agent", layout="wide")
@@ -62,7 +62,7 @@ def main() -> None:
 
     if not cases:
         st.warning(
-            "No answer files found in `out/cases/`. Run `python -m src.eval.run_cases` "
+            "No answer files found in `cases/`. Run `python -m src.eval.run_cases` "
             "to investigate the 20 benchmark cases first."
         )
         st.stop()

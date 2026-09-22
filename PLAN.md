@@ -43,7 +43,7 @@ evidence + policy docs, not raw data dumps) · a UI.
 |---|---|---|
 | TigerGraph | **Savanna free cloud** | **Laptop has 8 GB RAM; Community Edition needs 16 GB min / 20 GB rec.** Docker isn't installed and WSL2 + Docker Desktop would consume 2–3 GB before TigerGraph starts. Hardware decides this. |
 | Agent framework | **LangGraph** | State graph maps 1:1 onto the brief's 8-step flow; checkpointing gives case state + memory cheaply; scores directly against "agentic design". |
-| LLM | **Gemini** | Only key on hand. Also supplies embeddings (`text-embedding-004`, 768 dim). |
+| LLM | **Gemini** | Only key on hand. Also supplies embeddings. **Actuals differ from this row's original plan — see EXECUTION.md Phase 4/6 notes:** `text-embedding-004` is deprecated (using `gemini-embedding-001` truncated to 768 dim instead); `gemini-3.6-flash` free tier caps at 20 `generate_content` calls/day (using `gemini-flash-lite-latest` for volume instead); `embed_content` free tier caps at 1000/day (hit during this build — the benchmark runner degrades gracefully rather than failing a case over it). |
 | UI | **Streamlit**, Next.js only as stretch | Pure Python, no build step. Next.js is not a commitment. |
 | GraphRAG | **Hand-rolled ~100-line retrieval layer** | Official `tigergraph/graphrag` is a multi-container platform (DB + embedding + completion + chat-history + nginx) and ships its own chat UI that would compete with our UI requirement. Cite it in the README as the pattern followed. |
 
@@ -94,7 +94,7 @@ goatask/
     cases/      case record model, writer to graph + JSON
     eval/       benchmark runner for the 20 cases
   app/streamlit_app.py
-  out/cases/          the 20 answer files
+  cases/          the 20 answer files
 ```
 
 ### Graph schema
@@ -210,7 +210,7 @@ more evidence or escalates.
 
 ### Outputs per benchmark case
 
-One answer file per case in `out/cases/` — *exact schema confirmed from the dataset README*
+One answer file per case in `cases/` — *exact schema confirmed from the dataset README*
 — containing the case record (investigation, evidence, findings, decisions, actions),
 `nba_before` / `nba_after` with approval routes, and a suspicious activity report where
 policy requires one. **The case must also be written to the graph**, not just the file.

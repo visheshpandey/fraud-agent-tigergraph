@@ -1,5 +1,5 @@
 """Runs the agent against all 20 cases in case_pack.csv and writes the graded
-answer files to out/cases/<case_id>.json, exactly matching the README's
+answer files to cases/<case_id>.json, exactly matching the README's
 Answer Format section.
 
 Reuses the building blocks already validated on mock scenarios rather than
@@ -36,7 +36,9 @@ from src.tg.connection import get_connection
 
 ROOT = Path(__file__).resolve().parents[2]
 DERIVED = ROOT / "data" / "derived"
-OUT_DIR = ROOT / "out" / "cases"
+# README: "Submit ... in a folder called cases/ in your repository" -- this
+# is the literal graded output path, not a build artifact under out/.
+OUT_DIR = ROOT / "cases"
 MAX_ROUNDS = 2
 
 
@@ -78,9 +80,17 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
         f"amount ${flagged.get('amount', 0):.2f}, product {flagged.get('product_cd')}, "
         f"channel {flagged.get('channel')}."
     )
-    query_vec = embed_text(query_text, task_type="RETRIEVAL_QUERY")
-    similar = await tb.similar_closed_cases(query_vec, k=3)
-    policy = await tb.policy_search(query_vec, k=3)
+    # embed_content is a free enrichment, not core evidence -- degrade gracefully
+    # if the embedding API is unavailable (e.g. the ~1000/day free-tier cap)
+    # rather than failing the whole case over a missing "similar cases" lookup.
+    try:
+        query_vec = embed_text(query_text, task_type="RETRIEVAL_QUERY")
+        similar = await tb.similar_closed_cases(query_vec, k=3)
+        policy = await tb.policy_search(query_vec, k=3)
+    except Exception as e:  # noqa: BLE001
+        print(f"    [gather_evidence] embedding/vector search unavailable ({type(e).__name__}), "
+              f"continuing without case-memory/policy retrieval for this case")
+        similar, policy = {}, {}
 
     similar_cases = similar.get("Results", []) if isinstance(similar, dict) else []
     similar_outcomes = [c.get("attributes", {}).get("outcome") for c in similar_cases if isinstance(c, dict)]
@@ -91,9 +101,19 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
 
     txns = window.get("transactions", [])
     shared_customers = device_result.get("@@customer_ids", []) if device_result else []
-    shared_origin = len(shared_customers) > 1
-    ring_cards = ring.get("@@connected_card_ids", []) if ring else []
-    known_fraud_cards = ring.get("@@known_fraud_card_ids", []) if ring else []
+    ring_cards_raw = ring.get("@@connected_card_ids", []) if ring else []
+    known_fraud_cards_raw = ring.get("@@known_fraud_card_ids", []) if ring else []
+
+    # Some device fingerprints are generic rather than unique (e.g. bare "iOS
+    # Device" + a common OS/browser/resolution combo, seen on 168 unrelated
+    # transactions in testing) -- a large "shared" count is a sign of a
+    # coarse fingerprint colliding across strangers, not a real ring. Treat
+    # anything above this threshold as non-diagnostic rather than evidence.
+    GENERIC_DEVICE_THRESHOLD = 15
+    device_is_generic = len(shared_customers) > GENERIC_DEVICE_THRESHOLD or len(ring_cards_raw) > GENERIC_DEVICE_THRESHOLD
+    shared_origin = 1 < len(shared_customers) <= GENERIC_DEVICE_THRESHOLD
+    ring_cards = [] if device_is_generic else ring_cards_raw
+    known_fraud_cards = [] if device_is_generic else known_fraud_cards_raw
 
     narrative_parts = [
         f"TRIGGER: {case['trigger_type']} -- {case['trigger_text']}",
@@ -106,11 +126,18 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
         f"Recent activity on this card ({len(txns)} transactions in window): "
         + "; ".join(_fmt_txn(t.get("attributes", t)) for t in txns[:10] if isinstance(t, dict)),
     ]
-    if device_id:
+    if device_id and device_is_generic:
+        narrative_parts.append(
+            f"Device profile {device_id} is linked to {len(shared_customers)} customers -- too many to be a "
+            "meaningful signal; this is a generic device fingerprint (e.g. a common phone/OS/browser "
+            "combination), not evidence of a shared physical device. Treat as non-diagnostic."
+        )
+    elif device_id and shared_customers:
         narrative_parts.append(
             f"Device profile {device_id} is linked to {len(shared_customers)} customer(s): {shared_customers}."
-            if shared_customers else f"Device profile {device_id} is used only by this customer."
         )
+    elif device_id:
+        narrative_parts.append(f"Device profile {device_id} is used only by this customer.")
     else:
         narrative_parts.append("This transaction has no linked device profile (in-person / no identity record).")
     narrative_parts.append(
@@ -144,7 +171,7 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
         "flagged_txn_id": flagged_id,
         "device_id": device_id,
         "connected_card_ids": ring_cards,
-        "connected_device_profiles": [device_id] if device_id and shared_customers else [],
+        "connected_device_profiles": [device_id] if device_id and shared_origin else [],
         "similar_case_ids": similar_ids,
         "similar_outcomes": similar_outcomes,
     }
