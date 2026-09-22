@@ -263,39 +263,92 @@ Pre-install all. **`INSTALL QUERY` takes minutes each and must never run at demo
 
 ## Phase 4 — GraphRAG layer
 
-- [ ] Policy docs + typologies + regulatory refs chunked
-- [ ] Chunks embedded → `DocChunk.emb`
-- [ ] `FraudPattern` vertices for the 5 documented patterns, linked to chunks
-- [ ] Closed cases (months 1–4) embedded → `Case.emb`
-- [ ] Verified: a known policy phrase retrieves the right chunk first
-- [ ] Verified: a known-similar closed case ranks first in `similar_closed_cases`
+- [x] Policy docs + typologies chunked — `src/rag/policy_docs.py`, hand-curated (not
+      auto-parsed) from `data/raw/README.md`'s Fraud Policy + pattern sections: 5 pattern
+      chunks + 19 policy chunks (actions, approval routing, R1-R10, 3a/3b, exposure,
+      evidence-gathering, stopping, explaining) = 24 total
+- [x] Chunks embedded → `DocChunk.emb` — `src/rag/load_policy_chunks.py`, all 24 loaded.
+      `policy_search("customer denied making a transaction...")` retrieves `policy-R2` as
+      top hit — semantic retrieval verified working
+- [ ] ~~`FraudPattern` vertices~~ — **descoped.** Patterns live as `DocChunk` rows
+      (`doc_type="pattern"`) instead of a separate vertex type; keeps the schema smaller,
+      the pattern text is still retrievable via `policy_search`
+- [~] Closed cases embedded → `ClosedCase.emb` — **in progress, background job, resumable/
+      idempotent.** 5,565 narratives built from `analyst_notes` + pattern/outcome/exposure.
+      **Free tier `embed_content` limit is ~100 req/min** (not obvious from docs, found via
+      429s); batches of 50 cases/call, retry-with-65s-backoff on 429, hit rate limit
+      repeatedly — expect this to take up to an hour to fully complete, running unattended
+
+**SCOPE LIMITATION (documented, not silently dropped):** the README also lists external
+regulatory references (FinCEN/FATF/FFIEC/OFAC PDFs) as optional ("load the ones you find
+useful"). Not downloaded/chunked — judged lower value than getting core policy/pattern/
+case-memory retrieval solid within remaining time. Noted in `src/rag/policy_docs.py`'s
+docstring as the place to add them if time remains.
+
+**Real Gemini model/quota findings (cost significant debugging time, critical to know):**
+- `text-embedding-004` (PLAN.md's original choice) is deprecated/404. Using
+  `gemini-embedding-001` truncated to 768 dim via `output_dimensionality=768` — confirmed
+  exact 768-dim output, matches schema.
+- `google-genai` 0.3.0 (the installed version) **cannot even list models** against the
+  current API (500/501 errors) — using the deprecated `google.generativeai` package
+  instead throughout, since it works end-to-end. Upgrade `google-genai` if time allows.
+- `google.generativeai`'s `response_schema` support is limited: it rejects any JSON Schema
+  key it doesn't recognize, including `minimum`/`maximum` (from pydantic `Field(ge=,le=)`)
+  and `default` (from any field with one). **`RiskAssessment` cannot be passed directly as
+  `response_schema`** — `src/agent/llm.py` builds a manual schema dict instead.
+- **`gemini-3.6-flash`'s free tier caps `generate_content` at 20 requests PER DAY** (not
+  per minute — `quota_id: GenerateRequestsPerDayPerProjectPerModel-FreeTier`). Exhausted
+  this during testing alone. **Switched `REASONING_MODEL` to `gemini-flash-lite-latest`**,
+  which has an independent, much less restrictive quota and kept working immediately after
+  3.6-flash's daily cap hit. **If the benchmark run (Phase 6) starts failing with
+  ResourceExhausted on this model too, that's the next thing to check** — get a real API
+  key with billing enabled, or spread the 20-case run across quota resets.
+- [x] Verified: a known policy phrase retrieves the right chunk first — `policy-R2` for
+      "customer denied making a transaction"
+- [ ] Verified: a known-similar closed case ranks first in `similar_closed_cases` — blocked
+      on the `ClosedCase.emb` embedding job (in progress) finishing
 
 ---
 
 ## Phase 5 — Agent
 
-- [ ] MCP session helper — **one session held for the whole run** *(no MCP server exists
-      yet — `src/agent/tools.py` has a documented seam for it, mock backend for now)*
-- [ ] MCP tool list verified empirically; allowlist confirmed active
-- [x] Case record model with **`nba_before` and `nba_after` as first-class fields**
-      (`src/agent/state.py::CaseState`)
+- [x] MCP session helper — **real, working.** `src/agent/mcp_tools.py::McpToolbox`, holds
+      one stdio session via `langchain_mcp_adapters`. Verified live against real Savanna
+      data: `get_vertex_count`, `run_installed_query` for `device_shared_accounts` both
+      returned correct real results through MCP
+- [x] MCP tool list verified empirically; allowlist confirmed active — 7 tools load
+      (`run_installed_query`, `get_node`, `get_node_edges`, `get_neighbors`,
+      `get_vertex_count`, `get_edge_count`, `search_top_k_similarity`) via
+      `TG_ALLOWED_TOOLS` in `.env`, namespaced `tigergraph__*`
+- [x] Case record model — `initial_actions`/`final_actions` (README's exact naming, not
+      `nba_before`/`nba_after`) as first-class fields (`src/agent/state.py::CaseState`)
 - [x] Nodes: `trigger` · `open_case` · `gather_evidence` · `assess` · `check_sufficiency` ·
       `request_evidence` · `decide_action` · `explain` · `update_memory`
-      (`src/agent/nodes.py`, wired in `src/agent/graph.py`)
-- [x] `RiskAssessment` returns `confidence` + explicit `evidence_gaps`
-      *(stubbed heuristic in `src/agent/llm.py`, not a real Gemini call yet)*
-- [x] Decision matrix: risk × confidence × reversibility → action + approval route
-      (`src/agent/nodes.py::decision_matrix`, explicit code, not prompt text)
-- [x] Mock APIs for simulated actions (validate txn, step-up auth, analyst request)
-      (`src/agent/tools.py`)
-- [x] Evidence-gathering loop capped at 2 rounds — verified: with a forced
-      always-uncertain assessment, the loop still terminates at `round_count == 2` and
-      routes to `decide_action` regardless of confidence
-- [x] End-to-end on ONE case, run via `python -m src.agent.graph`
-      (mock tools + stubbed LLM only — no TigerGraph, no real Gemini)
-- [x] **Verified: agent requests more evidence at least once, and `nba_before` ≠ `nba_after`**
-      — the `card-ambig-042` mock scenario does exactly this
-      (`gather_more_evidence`/`analyst` → `no_action`/`auto` after owner confirmation)
+      (`src/agent/nodes.py`, wired in `src/agent/graph.py` — this is the MOCK demonstration
+      graph, kept as-is; the REAL benchmark pipeline is `src/eval/run_cases.py`, see Phase 6)
+- [x] `RiskAssessment` — **real Gemini call**, not a stub. `src/agent/llm.py`,
+      `gemini-flash-lite-latest`, manual JSON schema (see Phase 4 notes on why not
+      pydantic-derived), verified producing sensible verdict/probability/pattern/rationale
+      against real evidence narratives in the HHG-001 test run
+- [x] Decision matrix: **rewritten to implement policy rules R1-R10** (not a generic
+      risk×confidence×reversibility matrix — see Phase 0 findings), `src/agent/nodes.py::
+      decision_matrix`, explicit code with rule citations in every `reason` field
+- [x] Mock APIs for simulated actions (validate txn, step-up auth, analyst request) —
+      `src/agent/tools.py`, used by the mock demo graph. **Real benchmark run** simulates
+      evidence responses differently: grounded in retrieved similar-case outcomes rather
+      than fixed scenario data — `src/eval/run_cases.py::_simulate_customer_response`
+- [x] Evidence-gathering loop capped at 2 rounds — verified on the mock demo; same cap
+      (`MAX_ROUNDS`) reused in the real benchmark runner
+- [x] End-to-end on ONE case with the MOCK graph (`python -m src.agent.graph`) — validated
+      earlier, not re-verified against real Gemini due to quota pressure (not essential;
+      the real pipeline is what's graded)
+- [x] End-to-end on ONE REAL case (`HHG-001`) via `src/eval/run_cases.py` — real MCP, real
+      graph data, real Gemini, real graph write. See Phase 6 for the result and a bug it
+      caught (`fraud_ring_component` noise) and fixed
+- [x] **Verified: `initial_actions` ≠ `final_actions` is achievable** — mechanism proven on
+      the mock demo (`card-ambig-042` scenario); real cases will show it whenever simulated
+      evidence changes the verdict (mechanism identical, not yet observed on a real case
+      since HHG-001 didn't need a second round)
 
 ---
 

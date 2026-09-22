@@ -1,27 +1,32 @@
-// Two-hop traversal from a seed card, through the devices it's used, out to
-// every other card sharing one of those devices — a deliberately simple
-// device-based ring signal (kept to a fixed 2 hops rather than an open-ended
-// BFS/WHILE loop, which is harder to get right blind and to bound at query
-// time). Cross-references ClosedCase via the CASE_ON_CARD reverse edge to
-// flag which connected cards already have confirmed-fraud history.
+// Device-based ring signal, seeded from ONE specific transaction rather than
+// a card's entire history. Originally seeded from all of a card's
+// transactions -> all devices it has EVER used -> every card sharing any of
+// those -- which for a long-lived, high-activity customer pulled in their
+// entire multi-year device history and surfaced dozens of "confirmed fraud"
+// cards purely by statistical chance (a device shared once, years apart, is
+// not a ring). Seeding from the single flagged transaction's device instead
+// answers the actually relevant question: who else used THIS device around
+// THIS event.
 USE GRAPH FraudGraph
 
-CREATE QUERY fraud_ring_component(STRING seed_card_id) FOR GRAPH FraudGraph {
+CREATE QUERY fraud_ring_component(STRING seed_txn_id) FOR GRAPH FraudGraph {
   SetAccum<STRING> @@connected_card_ids;
   SetAccum<STRING> @@connected_customer_ids;
   SetAccum<STRING> @@known_fraud_card_ids;
 
-  Seed = {Card.*};
-  Seed = SELECT c FROM Seed:c WHERE c.card_id == seed_card_id;
+  Seed = {Transaction.*};
+  Seed = SELECT t FROM Seed:t WHERE t.transaction_id == seed_txn_id;
 
-  SeedTxns = SELECT t FROM Seed:c -(MADE:e)- Transaction:t;
+  SeedCard = SELECT c FROM Seed:t -(MADE:e)- Card:c;
+  SetAccum<STRING> @@seed_card_id;
+  SeedCard = SELECT c FROM SeedCard:c ACCUM @@seed_card_id += c.card_id;
 
-  Devices = SELECT d FROM SeedTxns:t -(FROM_DEVICE:e)- DeviceProfile:d;
+  Devices = SELECT d FROM Seed:t -(FROM_DEVICE:e)- DeviceProfile:d;
 
   OtherTxns = SELECT t FROM Devices:d -(FROM_DEVICE:e)- Transaction:t;
 
   OtherCards = SELECT c FROM OtherTxns:t -(MADE:e)- Card:c
-               WHERE c.card_id != seed_card_id
+               WHERE c.card_id NOT IN @@seed_card_id
                ACCUM @@connected_card_ids += c.card_id
                LIMIT 100;
 

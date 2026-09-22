@@ -95,7 +95,10 @@ class RiskAssessment(BaseModel):
     the README scores for calibration, not a generic internal risk score."""
 
     verdict: Verdict
-    fraud_probability: float = Field(ge=0.0, le=1.0)
+    # No ge=/le= constraint: google.generativeai's response_schema translator
+    # doesn't support JSON Schema minimum/maximum (raises "Unknown field for
+    # Schema: maximum"). The 0-1 range is enforced by the system prompt instead.
+    fraud_probability: float
     pattern: Pattern
     pattern_description: str = Field(
         default="", description="Required (non-empty) only when pattern='undocumented'"

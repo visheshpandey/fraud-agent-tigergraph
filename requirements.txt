@@ -1,2 +1,9 @@
 langgraph>=1.2
 pydantic>=2.9
+pyTigerGraph>=2.0.4
+python-dotenv>=1.0
+pandas>=2.3
+google-generativeai>=0.8
+tigergraph-mcp>=1.0.3
+langchain-mcp-adapters
+streamlit>=1.38

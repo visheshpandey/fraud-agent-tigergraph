@@ -157,8 +157,14 @@ def gather_evidence(state: CaseState) -> CaseState:
     }
 
 
+def _evidence_narrative(tool_evidence: list[ToolEvidence]) -> str:
+    lines = [f"- {e['source']} (round {e['round']}): {e['summary']}" for e in tool_evidence]
+    return "Evidence gathered so far:\n" + "\n".join(lines) if lines else "No evidence gathered yet."
+
+
 def assess(state: CaseState) -> CaseState:
-    assessment: RiskAssessment = llm.assess_risk_from_evidence(state.get("tool_evidence", []))
+    narrative = _evidence_narrative(state.get("tool_evidence", []))
+    assessment: RiskAssessment = llm.assess_risk_from_evidence(narrative)
     return {
         "risk_assessment": assessment,
         "verdict": assessment.verdict,
@@ -426,8 +432,25 @@ def decide_action(state: CaseState) -> CaseState:
     return update
 
 
+def _explain_narrative(state: CaseState) -> str:
+    assessment: RiskAssessment = state["risk_assessment"]
+    initial = [a.action for a in state.get("initial_actions", [])]
+    final = [a.action for a in state.get("final_actions", [])]
+    parts = [
+        f"Case {state.get('case_id')}. Verdict: {assessment.verdict}, "
+        f"fraud_probability={assessment.fraud_probability:.2f}, pattern={assessment.pattern}.",
+        f"Rationale: {assessment.rationale}",
+        _evidence_narrative(state.get("tool_evidence", [])),
+        f"Initial recommended actions: {initial}.",
+        f"Final recommended actions: {final}.",
+    ]
+    if initial != final:
+        parts.append(f"What changed: {state.get('what_changed', '')}")
+    return "\n".join(parts)
+
+
 def explain(state: CaseState) -> CaseState:
-    explanation = llm.generate_explanation(state)
+    explanation = llm.generate_explanation(_explain_narrative(state))
     stop_reason = state.get("stop_reason") or (
         "Round cap reached before a settling response arrived."
         if state.get("round_count", 0) >= state.get("max_rounds", 2)
