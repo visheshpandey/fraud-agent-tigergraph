@@ -13,7 +13,7 @@
 // INDEXTYPE=HNSW is the default and is built and maintained automatically.
 // =============================================================================
 
-USE GRAPH FraudGraph
+USE GLOBAL
 
 CREATE GLOBAL SCHEMA_CHANGE JOB add_vector_attrs {
   // Policy documents, fraud typologies and regulatory references.
@@ -25,10 +25,19 @@ CREATE GLOBAL SCHEMA_CHANGE JOB add_vector_attrs {
     INDEXTYPE="HNSW"
   );
 
-  // Case memory. Embedding every closed case summary turns "have we seen this
-  // before?" into a single vectorSearch, which is how the agent reuses prior
-  // analyst decisions and outcomes on new activity.
-  ALTER VERTEX Case ADD VECTOR ATTRIBUTE emb(
+  // Case memory. Embedding every closed case's narrative/summary turns "have we
+  // seen this before?" into a single vectorSearch over the 5,565 historical
+  // investigations — this is what `similar_prior_cases` retrieves from.
+  ALTER VERTEX ClosedCase ADD VECTOR ATTRIBUTE emb(
+    DIMENSION=768,
+    METRIC="COSINE",
+    INDEXTYPE="HNSW"
+  );
+
+  // The agent's own cases get the same treatment, so a case closed earlier in
+  // this run becomes memory for a later one without waiting for the next batch
+  // of historical data — "update memory as new cases are resolved".
+  ALTER VERTEX InvestigationCase ADD VECTOR ATTRIBUTE emb(
     DIMENSION=768,
     METRIC="COSINE",
     INDEXTYPE="HNSW"

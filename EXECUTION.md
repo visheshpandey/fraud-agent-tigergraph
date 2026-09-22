@@ -17,11 +17,11 @@
 ## Current State
 
 **Last updated:** 2026-09-22
-**Phase:** 1 — all Phase 0 blockers cleared (dataset, Savanna workspace+secret, Gemini key).
-Agent skeleton already reconciled with the exact answer format; schema still needs the same pass.
-**Next action:** rewrite `schema/01_schema.gsql` to match the README's suggested schema
-(DeviceProfile/ClosedCase/PURCHASER_EMAIL), then run it against the live Savanna workspace via
-a pyTigerGraph connection helper
+**Phase:** 2 — schema is LIVE on Savanna (9 vertex types, all edges, 2 vector attributes
+confirmed via `conn.getVertexTypes()`). Agent skeleton (Phase 5) already matches the exact
+answer format.
+**Next action:** ETL — `src/prep/` to turn `data/raw/*.csv` into loadable derived CSVs, then
+`schema/03_loading_jobs.gsql` to bulk-load them
 **Blocked on:** nothing — clear to proceed
 
 **Written but NOT yet run against a live instance:** `schema/01_schema.gsql`,
@@ -158,10 +158,26 @@ all need rework to match this exact vocabulary before Phase 2/6 can proceed corr
 
 ## Phase 2 — Graph + data
 
-- [~] `schema/01_schema.gsql` — **drafted, not yet run.** Reconcile with README first
-- [~] `schema/02_vector_attrs.gsql` — **drafted, not yet run.** Needs TigerGraph 4.2+
-- [ ] Verify workspace version (`SHOW VERSION`) supports vector attributes
-- [ ] Both schema scripts execute cleanly against Savanna
+- [x] `schema/01_schema.gsql` — **LIVE on Savanna.** Reconciled against the README's
+      suggested schema: `Customer, Card, Transaction, DeviceProfile, EmailDomain,
+      BillingRegion, ClosedCase, InvestigationCase, DocChunk` + all edges. Renamed 3 fields
+      that hit reserved GSQL keywords: `screen`→`screen_res`, `proxy`→`proxy_flag`, and the
+      `Case` vertex itself → `InvestigationCase` (CASE WHEN is reserved). `InvestigationCase`
+      mirrors the README's answer-format `case` object field-for-field.
+- [x] `schema/02_vector_attrs.gsql` — **LIVE.** `ClosedCase.emb` + `InvestigationCase.emb`,
+      768-dim COSINE HNSW. Needed `USE GLOBAL` before both `CREATE` and `RUN GLOBAL SCHEMA_
+      CHANGE JOB` (graph-scoped `USE GRAPH` context fails with "Please 'use global' first").
+- [x] Verify workspace version — **4.2.5**, confirmed via `conn.getVer()`
+- [x] Both schema scripts execute cleanly against Savanna — confirmed via `conn.getVertexTypes()`
+      returning all 9 types
+
+**pyTigerGraph gotcha (cost real time, worth flagging):** `conn.getToken(secret)` fails with
+"User authentication failed" on this Savanna instance — pyTigerGraph 2.0.4's `_prep_req`
+attaches a default `tigergraph`/`tigergraph` Basic-auth header to the token request itself
+regardless of the `authMode` argument, and Savanna rejects that header before the secret in
+the body is even checked. Fix: fetch the JWT manually (`POST {host}/gsql/v1/tokens` with
+`{"secret": ..., "lifetime": ...}` via `requests`) and construct `TigerGraphConnection(host=,
+graphname=, apiToken=<jwt>)` directly. Implemented in `src/tg/connection.py`.
 - [ ] `src/prep/` ETL — **`usecols` to drop V1–V339, downcast dtypes, chunked reads (8 GB RAM)**
 - [ ] Derived dimension CSVs → `data/derived/`
 - [ ] `schema/03_loading_jobs.gsql` — loading jobs (**not** DataFrame upserts for bulk)

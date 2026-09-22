@@ -1,16 +1,23 @@
 // =============================================================================
 // FraudGraph — core schema
 // =============================================================================
-// Run with:  gsql -f schema/01_schema.gsql     (or src/tg/setup.py)
+// Run with:  gsql -f schema/01_schema.gsql   (or a pyTigerGraph conn.gsql() call)
 //
-// Vertices and edges are created GLOBALLY so that vector attributes can later
-// be attached with a GLOBAL SCHEMA_CHANGE JOB (see 02_vector_attrs.gsql).
+// Follows the "Suggested graph schema" in data/raw/README.md (vertex/edge names:
+// Customer, Card, Transaction, DeviceProfile, EmailDomain, BillingRegion,
+// ClosedCase, OWNS, MADE, FROM_DEVICE, PURCHASER_EMAIL, BILLED_IN, NEXT, INVOLVES,
+// ON_CARD, CONNECTED_TO) plus our own extensions: RECIPIENT_EMAIL (R_emaildomain,
+// the suggestion only covers the purchaser side), InvestigationCase + its edges (the agent's
+// own investigation record — reuses INVOLVES/ON_CARD/CONNECTED_TO via multi-pair
+// edge definitions so InvestigationCase and ClosedCase are queried identically), SIMILAR_TO
+// (case-memory retrieval, made explicit as a graph edge rather than left implicit
+// in a JSON field), and DocChunk (policy/regulatory/pattern text for GraphRAG).
 //
-// CONFIRM AGAINST THE DATASET README before loading:
-//   - the customer identifier column (base IEEE-CIS has none; HHGOA adds one)
-//   - the risk score column name
-//   - whether closed-case files carry fields not modelled here
-// Adjust attributes below rather than working around them in the loader.
+// V1-V339, C1-C14, D1-D15, M1-M9 are NOT modeled as vertex attributes: 339+ unnamed
+// engineered columns per transaction would bloat the vertex for no graph-structural
+// benefit. They are used as pandas-side signals in src/prep/ (e.g. velocity,
+// amount-anomaly scoring) and cited as `source: "graph"` evidence by column name
+// when they inform a claim, per the README's "say so in your evidence" instruction.
 // =============================================================================
 
 DROP ALL
@@ -20,165 +27,182 @@ DROP ALL
 // ----------------------------------------------------------------------------
 
 CREATE VERTEX Customer (
-  PRIMARY_ID customer_id STRING,
-  first_seen_dt  INT,
-  last_seen_dt   INT,
-  txn_count      INT,
-  total_amount   DOUBLE
+  PRIMARY_ID customer_id STRING   // e.g. "C01234"
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX Card (
-  PRIMARY_ID card_id STRING,     // composite of card1..card6
-  card1      INT,
-  card2      INT,
-  card3      INT,
-  card4      STRING,             // network: visa / mastercard / amex / discover
-  card5      INT,
-  card6      STRING,             // type: debit / credit
-  bin        STRING
+  PRIMARY_ID card_id STRING,      // e.g. "C01234-K1" — customer_id + card suffix
+  card1  INT,
+  card2  INT,
+  card3  INT,
+  card4  STRING,                  // network: visa / mastercard / american express / discover
+  card5  INT,
+  card6  STRING                   // type: credit / debit
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX Transaction (
-  PRIMARY_ID transaction_id STRING,
-  transaction_dt INT,            // raw TransactionDT (seconds from dataset epoch)
-  txn_datetime   DATETIME,       // derived in ETL for human-readable windows
-  amount         DOUBLE,         // TransactionAmt
-  product_cd     STRING,
-  risk_score     DOUBLE,         // the bank model's score — there is no isFraud flag
+  PRIMARY_ID transaction_id STRING,   // TransactionID
+  transaction_dt INT,                 // raw TransactionDT (seconds from dataset start)
+  ts             DATETIME,            // real timestamp, added column
+  amount         DOUBLE,              // TransactionAmt
+  product_cd     STRING,              // W/C/H/R/S — W has no identity record
+  channel        STRING,              // in_person | online
+  risk_score     DOUBLE,              // bank model score, 0-1 — an input, never a verdict
+  addr1          INT,
+  addr2          INT,
   dist1          INT,
-  dist2          INT
+  dist2          INT,
+  p_emaildomain  STRING,
+  r_emaildomain  STRING
 ) WITH primary_id_as_attribute="true"
 
-CREATE VERTEX Device (
-  PRIMARY_ID device_id STRING,   // hash of device_info + os + browser + resolution
-  device_info       STRING,
-  device_type       STRING,      // desktop / mobile
-  os                STRING,
-  browser           STRING,
-  screen_resolution STRING
+CREATE VERTEX DeviceProfile (
+  PRIMARY_ID device_id STRING,    // derived: hash of device_info + os + browser + screen
+  device_info STRING,             // DeviceInfo, e.g. "SAMSUNG SM-G935F Build/NRD90M"
+  device_type STRING,             // DeviceType: mobile | desktop
+  os          STRING,             // id_30
+  browser     STRING,             // id_31
+  screen_res  STRING,             // id_33
+  proxy_flag  STRING,             // id_23: transparent | anonymous | hidden | ""
+  is_new      BOOL                // id_15 == "New" for this account
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX EmailDomain (
-  PRIMARY_ID domain STRING,
-  is_free BOOL
+  PRIMARY_ID domain STRING
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX BillingRegion (
-  PRIMARY_ID region_id STRING,   // addr1_addr2
+  PRIMARY_ID region_id STRING,    // stringified addr1
   addr1 INT,
-  addr2 INT
+  addr2 INT                       // country code; 87 is the home country
 ) WITH primary_id_as_attribute="true"
 
 // ----------------------------------------------------------------------------
-// Knowledge vertices — policy, typologies, and the agent's own record
+// InvestigationCase memory — closed_cases_history.csv, loaded as-is (July-October, the only
+// place the ground truth lives) and never written to by the agent.
 // ----------------------------------------------------------------------------
 
-CREATE VERTEX FraudPattern (
-  PRIMARY_ID pattern_id STRING,
-  name        STRING,
-  description STRING,
-  indicators  STRING,            // JSON array, parsed agent-side
-  severity    STRING
+CREATE VERTEX ClosedCase (
+  PRIMARY_ID case_id STRING,          // e.g. "CC-0141"
+  customer_id        STRING,
+  card_id            STRING,
+  opened_at          DATETIME,
+  closed_at          DATETIME,
+  outcome            STRING,          // confirmed_fraud | cleared
+  pattern            STRING,          // one of the 7 pattern values, or "none" if cleared
+  first_fraud_txn_id STRING,
+  txn_ids            SET<STRING>,
+  n_txns             INT,
+  exposure_usd       DOUBLE,
+  connected_card_ids SET<STRING>,
+  actions_taken      STRING,
+  report_filed       BOOL,
+  analyst_notes      STRING
 ) WITH primary_id_as_attribute="true"
 
+// ----------------------------------------------------------------------------
+// InvestigationCase — the agent's OWN investigation record. Fields mirror the README's
+// Answer Format ("case" object) near-verbatim so Phase 6 can read this vertex
+// straight into the graded JSON instead of reconstructing it from scratch.
+// next_best_actions and sar are flattened with a prefix since GSQL vertices
+// don't nest; JSON-serializable list fields (evidence, actions) are stored as
+// STRING (JSON-encoded) since their item shape (action/route/reason etc.) is
+// richer than a flat SET can hold.
+// ----------------------------------------------------------------------------
+
+CREATE VERTEX InvestigationCase (
+  PRIMARY_ID case_id STRING,              // matches the HHG-### case_id from case_pack.csv
+  status                STRING,           // open | closed_fraud | closed_legitimate | escalated
+  verdict               STRING,           // fraud | legitimate | uncertain
+  fraud_probability     DOUBLE,
+  pattern               STRING,
+  pattern_description   STRING,
+  affected_txn_ids      SET<STRING>,
+  first_suspicious_txn_id STRING,
+  connected_card_ids    SET<STRING>,
+  connected_device_profiles SET<STRING>,
+  exposure_usd          DOUBLE,
+  evidence_json         STRING,          // JSON list of {claim, source, ref, entity_ids}
+  similar_prior_cases   SET<STRING>,     // ClosedCase ids retrieved as memory
+  summary               STRING,
+  evidence_requests_json STRING,         // JSON list of {type, asked_after_step, assumed_response}
+  initial_actions_json  STRING,          // JSON list of {action, route, reason}
+  final_actions_json    STRING,
+  what_changed          STRING,
+  stop_reason           STRING,
+  sar_file              BOOL,
+  sar_reason            STRING,
+  sar_narrative         STRING,
+  sar_subjects          SET<STRING>,
+  sar_total_amount_usd  DOUBLE,
+  sar_first_date        DATETIME,
+  sar_last_date         DATETIME,
+  trigger_type          STRING,          // risk_score | customer_report | analyst_request
+  trigger_text          STRING,
+  opened_at             DATETIME,
+  closed_at             DATETIME
+) WITH primary_id_as_attribute="true"
+
+// Policy, typologies, regulatory references, and closed-case narratives, chunked
+// for retrieval — this is what makes evidence GraphRAG rather than a raw dump.
 CREATE VERTEX DocChunk (
   PRIMARY_ID chunk_id STRING,
   doc_name STRING,
-  doc_type STRING,               // policy / typology / regulation
+  doc_type STRING,      // policy | typology | regulation | pattern | case_narrative
   section  STRING,
   text     STRING,
   ordinal  INT
 ) WITH primary_id_as_attribute="true"
 
-// A Case is both the agent's working record and, once closed, its memory.
-// nba_before / nba_after are REQUIRED by the brief: the next best action and
-// approval route must be recorded both before additional evidence is requested
-// and after it is received.
-CREATE VERTEX Case (
-  PRIMARY_ID case_id STRING,
-  status                STRING,  // open / investigating / awaiting_evidence / closed
-  trigger_type          STRING,  // risk_score / customer_report / analyst_request
-  fraud_type            STRING,
-  risk_level            STRING,  // low / medium / high / critical
-  confidence            DOUBLE,  // 0..1
-  evidence_gaps         STRING,  // JSON array
-  summary               STRING,
-  reasoning             STRING,
-  nba_before            STRING,  // JSON array of actions
-  approval_route_before STRING,
-  nba_after             STRING,  // JSON array of actions
-  approval_route_after  STRING,
-  sar_required          BOOL,
-  outcome               STRING,  // confirmed_fraud / cleared  (closed cases)
-  is_historical         BOOL,    // true for the months 1-4 closed investigations
-  opened_at             DATETIME,
-  updated_at            DATETIME,
-  closed_at             DATETIME
-) WITH primary_id_as_attribute="true"
-
-CREATE VERTEX Evidence (
-  PRIMARY_ID evidence_id STRING,
-  kind         STRING,           // graph_query / policy / prior_case / customer_response
-  source       STRING,           // the tool or actor that produced it
-  content      STRING,
-  round        INT,              // which evidence-gathering round produced it
-  collected_at DATETIME
-) WITH primary_id_as_attribute="true"
-
-CREATE VERTEX Action (
-  PRIMARY_ID action_id STRING,
-  action_type    STRING,         // block_txn / block_account / warn_customer / escalate / ...
-  status         STRING,         // recommended / approved / executed / rejected
-  approval_route STRING,         // auto / analyst / dual
-  phase          STRING,         // before_evidence / after_evidence
-  rationale      STRING,
-  created_at     DATETIME
-) WITH primary_id_as_attribute="true"
-
 // ----------------------------------------------------------------------------
 // Structural edges — UNDIRECTED so the agent can traverse either way cheaply
-// (a Device must reach its Transactions as easily as the reverse)
+// (e.g. a DeviceProfile must reach its Transactions as easily as the reverse)
 // ----------------------------------------------------------------------------
 
-CREATE UNDIRECTED EDGE OWNS        (FROM Customer,    TO Card)
-CREATE UNDIRECTED EDGE MADE        (FROM Card,        TO Transaction)
-CREATE UNDIRECTED EDGE FROM_DEVICE (FROM Transaction, TO Device)
-CREATE UNDIRECTED EDGE BILLED_IN   (FROM Transaction, TO BillingRegion)
-CREATE UNDIRECTED EDGE USES_EMAIL  (FROM Transaction, TO EmailDomain,
-                                    role STRING)       // purchaser / recipient
+CREATE UNDIRECTED EDGE OWNS            (FROM Customer,    TO Card)
+CREATE UNDIRECTED EDGE MADE            (FROM Card,        TO Transaction)
+CREATE UNDIRECTED EDGE FROM_DEVICE     (FROM Transaction, TO DeviceProfile)   // online only
+CREATE UNDIRECTED EDGE PURCHASER_EMAIL (FROM Transaction, TO EmailDomain)
+CREATE UNDIRECTED EDGE RECIPIENT_EMAIL (FROM Transaction, TO EmailDomain)    // our extension: R_emaildomain
+CREATE UNDIRECTED EDGE BILLED_IN       (FROM Transaction, TO BillingRegion)
 
-// Temporal chain per card — direction is meaningful, so keep it directed
+// Temporal chain per card, ordered by ts. Direction is meaningful, so directed.
 CREATE DIRECTED EDGE NEXT (FROM Transaction, TO Transaction,
                            gap_seconds INT) WITH REVERSE_EDGE="PREV"
 
 // ----------------------------------------------------------------------------
-// Case edges
+// InvestigationCase edges — declared with two FROM/TO pairs so ClosedCase and InvestigationCase are
+// queried identically; a fresh InvestigationCase becomes case memory the moment it's written,
+// with no separate query path needed for "cases we investigated" vs "cases the
+// bank already closed".
 // ----------------------------------------------------------------------------
 
-CREATE DIRECTED EDGE INVOLVES_CUSTOMER (FROM Case, TO Customer)    WITH REVERSE_EDGE="CUSTOMER_IN_CASE"
-CREATE DIRECTED EDGE INVOLVES_CARD     (FROM Case, TO Card)        WITH REVERSE_EDGE="CARD_IN_CASE"
-CREATE DIRECTED EDGE INVOLVES_TXN      (FROM Case, TO Transaction) WITH REVERSE_EDGE="TXN_IN_CASE"
-CREATE DIRECTED EDGE HAS_EVIDENCE      (FROM Case, TO Evidence)    WITH REVERSE_EDGE="EVIDENCE_OF"
-CREATE DIRECTED EDGE RECOMMENDS        (FROM Case, TO Action)      WITH REVERSE_EDGE="ACTION_OF"
+CREATE DIRECTED EDGE INVOLVES (
+  FROM ClosedCase, TO Transaction | FROM InvestigationCase, TO Transaction
+) WITH REVERSE_EDGE="INVOLVED_IN_CASE"
 
-CREATE DIRECTED EDGE MATCHES (FROM Case, TO FraudPattern,
-                              score DOUBLE) WITH REVERSE_EDGE="MATCHED_BY"
+CREATE DIRECTED EDGE ON_CARD (
+  FROM ClosedCase, TO Card | FROM InvestigationCase, TO Card
+) WITH REVERSE_EDGE="CASE_ON_CARD"
 
-// Populated from Case.emb vector search — makes case memory traversable as graph
-CREATE DIRECTED EDGE SIMILAR_TO (FROM Case, TO Case,
+CREATE DIRECTED EDGE CONNECTED_TO (
+  FROM ClosedCase, TO Card | FROM InvestigationCase, TO Card
+) WITH REVERSE_EDGE="CASE_CONNECTED_FROM"
+
+CREATE DIRECTED EDGE INVOLVES_CUSTOMER (
+  FROM ClosedCase, TO Customer | FROM InvestigationCase, TO Customer
+) WITH REVERSE_EDGE="CUSTOMER_IN_CASE"
+
+// InvestigationCase memory as a graph edge, not just a JSON field — populated from
+// InvestigationCase.emb / ClosedCase.emb vector search once a similar prior case is retrieved.
+CREATE DIRECTED EDGE SIMILAR_TO (FROM InvestigationCase, TO ClosedCase,
                                  similarity DOUBLE) WITH REVERSE_EDGE="SIMILAR_FROM"
-
-// Links a typology to the policy text that defines it. This is what makes the
-// retrieval layer GraphRAG rather than plain vector RAG: a vector hit on a
-// DocChunk traverses to the structured pattern, and vice versa.
-CREATE DIRECTED EDGE PATTERN_DOC (FROM FraudPattern, TO DocChunk) WITH REVERSE_EDGE="DOC_PATTERN"
 
 // ----------------------------------------------------------------------------
 
 CREATE GRAPH FraudGraph (
-  Customer, Card, Transaction, Device, EmailDomain, BillingRegion,
-  FraudPattern, DocChunk, Case, Evidence, Action,
-  OWNS, MADE, FROM_DEVICE, BILLED_IN, USES_EMAIL, NEXT,
-  INVOLVES_CUSTOMER, INVOLVES_CARD, INVOLVES_TXN,
-  HAS_EVIDENCE, RECOMMENDS, MATCHES, SIMILAR_TO, PATTERN_DOC
+  Customer, Card, Transaction, DeviceProfile, EmailDomain, BillingRegion,
+  ClosedCase, InvestigationCase, DocChunk,
+  OWNS, MADE, FROM_DEVICE, PURCHASER_EMAIL, RECIPIENT_EMAIL, BILLED_IN, NEXT,
+  INVOLVES, ON_CARD, CONNECTED_TO, INVOLVES_CUSTOMER, SIMILAR_TO
 )
