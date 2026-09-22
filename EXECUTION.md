@@ -17,9 +17,12 @@
 ## Current State
 
 **Last updated:** 2026-09-22
-**Phase:** 0 — blockers
-**Next action:** download the HHGOA_IEEE dataset to `data/raw/`, then read its README
-**Blocked on:** dataset download (manual) · Savanna workspace · Gemini key check
+**Phase:** 1 — all Phase 0 blockers cleared (dataset, Savanna workspace+secret, Gemini key).
+Agent skeleton already reconciled with the exact answer format; schema still needs the same pass.
+**Next action:** rewrite `schema/01_schema.gsql` to match the README's suggested schema
+(DeviceProfile/ClosedCase/PURCHASER_EMAIL), then run it against the live Savanna workspace via
+a pyTigerGraph connection helper
+**Blocked on:** nothing — clear to proceed
 
 **Written but NOT yet run against a live instance:** `schema/01_schema.gsql`,
 `schema/02_vector_attrs.gsql`. They are drafted from the known IEEE-CIS column structure
@@ -34,33 +37,107 @@ Values go in `.env` (gitignored) — this table only tracks *whether* each is es
 
 | Item | Status | Note |
 |---|---|---|
-| Savanna host | ☐ | `https://<id>.i.tgcloud.io`, port 443 |
-| Savanna secret | ☐ | Admin Portal → User Management → create secret. `.env` as `TG_SECRET` |
-| TigerGraph version | ☐ | **must be 4.2+** for vector attributes |
-| Graph name | ☐ | e.g. `FraudGraph` |
-| Gemini API key | ☐ | `.env` as `GOOGLE_API_KEY` |
-| Gemini models | ☐ | reasoning model + `text-embedding-004` (768 dim) |
+| Savanna host | [x] | `https://tg-a7ee9332-e51c-40b6-8dd4-d58f6b1dd205.tg-2635877100.i.tgcloud.io` |
+| Savanna secret | [x] | created via `CREATE SECRET` in Query Editor, saved to `.env` as `TG_SECRET` |
+| TigerGraph version | [x] | **4.2.5** — supports vector attributes |
+| Graph name | [x] | `FraudGraph` (in `.env`, not yet created on the server — schema not run yet) |
+| Gemini API key | [x] | verified live via `google.generativeai` — `gemini-3.6-flash` responds. **Note:** that package is deprecated upstream; use `google-genai` (already installed) for real integration, not `google.generativeai` |
+| Gemini models | ☐ | reasoning model TBD + `text-embedding-004` (768 dim) — not yet wired into `src/agent/llm.py` |
 | MCP allowlist | ☐ | `TG_ALLOWED_TOOLS` — prevents the ~29k token blowup |
 
 ---
 
 ## Phase 0 — Blockers (human-in-the-loop)
 
-- [ ] Download [HHGOA_IEEE dataset](https://drive.google.com/drive/folders/1YDJUW1fiE7Jx8R9KqknC4IcsED9zll2A) → `data/raw/`
-      *(link-shared folder, not readable through the Drive connector — must be manual)*
-- [ ] **Read the dataset README end to end**
-- [ ] Record from README: exact **answer file format** — *graded deliverable, do not guess*
-- [ ] Record from README: customer identifier column, risk score column name, file inventory
-- [ ] Record from README: how the 20 benchmark cases are structured / triggered
-- [ ] Create Savanna workspace; enable auto-start + auto-stop; note version
-- [ ] Create Savanna secret; confirm `conn.getToken(secret)` works
-- [ ] Verify Gemini key; note rate limits (matters when running 20 cases)
+- [x] Download [HHGOA_IEEE dataset](https://drive.google.com/drive/folders/1YDJUW1fiE7Jx8R9KqknC4IcsED9zll2A) → `data/raw/`
+      *(landed in Downloads first, moved manually — Drive connector could not enumerate the folder)*
+- [x] **Read the dataset README end to end**
+- [x] Record from README: exact **answer file format** — see findings block above
+- [x] Record from README: customer identifier column, risk score column name, file inventory
+- [x] Record from README: how the 20 benchmark cases are structured / triggered
+- [x] Create Savanna workspace; note version — **Workspace-1, TG-00 (16Gi), v4.2.5, Active.**
+      Auto Suspend already 60min; Auto Start still Disabled (recommend enabling via "..." menu)
+- [x] Create Savanna secret — created via `CREATE SECRET` in Query Editor; not yet tested with
+      `conn.getToken(secret)` (no pyTigerGraph connection code written yet)
+- [x] Verify Gemini key — confirmed live, `gemini-3.6-flash` responds. Rate limits not yet
+      characterized (matters once running 20 cases back to back)
 
-**Findings from the README** — fill this in, it overrides PLAN.md where they disagree:
+**Findings from the README** — this overrides PLAN.md where they disagree. README read in full
+2026-09-22; source: `data/raw/README.md`.
 
-```
-(paste answer format + key column names here)
-```
+**Files (confirmed on disk):** `transactions.csv` (590,742 rows, 708MB, cols = all 393 Vesta +
+`customer_id`,`ts`,`channel`,`risk_score`), `identity.csv` (144,432 rows, online txns only, joins
+on `TransactionID`), `closed_cases_history.csv` (5,565 rows: 4,665 confirmed_fraud / 900 cleared),
+`case_pack.csv` (the 20 exam cases).
+
+**IDs:** `customer_id` = `C01234`; card_id = `C01234-K1` (customer + card suffix, NOT our
+card1-6 composite hash). `ProductCD=W` → in_person, no identity record. Everything else → online.
+
+**Answer format (graded, exact):** one JSON file per case, `cases/<case_id>.json`, 20 files.
+Top level: `case_id`, `case`, `evidence_requests`, `next_best_actions`, `sar`, `stop_reason`,
+`tool_calls`, `tokens`, `latency_s`.
+- `case`: status(open/closed_fraud/closed_legitimate/escalated), verdict(fraud/legitimate/uncertain),
+  fraud_probability, pattern(enum below), pattern_description, affected_txn_ids,
+  first_suspicious_txn_id, connected_card_ids, connected_device_profiles, exposure_usd,
+  evidence[{claim,source,ref,entity_ids}], similar_prior_cases, summary, written_to_graph,
+  graph_case_id
+- `next_best_actions`: **`initial` / `final`** (not nba_before/nba_after), each a list of
+  {action, route, reason}; `what_changed`
+- `sar`: file(bool), reason, narrative, subjects, total_amount_usd, activity_dates
+- Full worked example is in the README (case HHG-017) — use it as the literal target shape.
+
+**Pattern enum (exact):** `card_testing` · `card_not_present_fraud` ·
+`card_not_present_new_device` · `out_of_region_use` · `account_takeover` · `undocumented` · `none`
+
+**Actions (exact strings, from policy):** `ALLOW_TRANSACTION`, `DECLINE_TRANSACTION`,
+`MONITOR_CARD`, `MONITOR_CONNECTED_CARDS`, `WARN_CUSTOMER`, `VERIFY_WITH_CUSTOMER`,
+`STEP_UP_AUTH`, `BLOCK_CARD`, `BLOCK_ALL_CARDS`, `GENERATE_REPORT`, `CREATE_CASE`,
+`FILE_REPORT`, `ESCALATE_TO_ANALYST`, `CLOSE_NO_FRAUD`
+
+**Approval routes (exact):** `auto` | `L1` (team lead) | `L2` (fraud manager) — NOT the
+`analyst`/`dual`/`auto` scheme drafted in src/agent/nodes.py. Full route table is in the
+policy §2. `BLOCK_CARD` is L1 if exposure ≤$2,500 else L2 — route depends on a *value*, not
+just the action.
+
+**Decision logic is a numbered rulebook (R1-R10), not a generic risk×confidence×reversibility
+matrix.** Key rules: R1 verify before blocking on a weak single signal (prob<0.70); R2 customer
+denies → block+create_case(+file_report if exposure>$1000 or shared device/ring); R3 customer
+confirms → close_no_fraud; R4 no reply in 24h → monitor+decline, escalate if exposure>$500;
+R5 card testing → decline+step_up, block_card if a >$100 purchase already cleared; R6 shared
+device/region/email across cards → name it, create_case+file_report+monitor_connected_cards;
+R7 disputed-but-matches-own-recurring-pattern → create_case+verify+warn, never block; R8
+uncertain verdict + exposure>$500 or conflicting evidence → escalate_to_analyst; R9 undocumented
+coordinated pattern → create_case+file_report+escalate, describe in own words; R10 never
+BLOCK_ALL_CARDS unless 2+ cards confirmed fraud or credentials confirmed compromised.
+**`src/agent/nodes.py::decision_matrix` must be rewritten against these rules, not the generic
+matrix currently in place.**
+
+**Stopping rule (exact):** stop when fraud probability ≥0.85 or ≤0.15 with 2+ independent
+evidence pieces, OR a verification response settles it, OR further steps won't change the
+decision (state why in `stop_reason`).
+
+**Suggested schema (README's, ours diverges — reconcile):** vertices `Customer`, `Card`,
+`Transaction`, `DeviceProfile` (not our `Device`), `EmailDomain`, `BillingRegion`, `ClosedCase`
+(README treats this as its own vertex type, not folded into `Case`). Edges:
+`Customer-OWNS->Card`, `Card-MADE->Transaction`, `Transaction-FROM_DEVICE->DeviceProfile`,
+`Transaction-PURCHASER_EMAIL->EmailDomain` (not our `USES_EMAIL`), `Transaction-BILLED_IN->
+BillingRegion`, `Transaction-NEXT->Transaction`, `ClosedCase-INVOLVES->Transaction`,
+`ClosedCase-ON_CARD->Card`, `ClosedCase-CONNECTED_TO->Card`.
+
+**Vector store target:** load closed-case narratives + this README's pattern section + the
+policy + regulatory PDFs (FinCEN/FATF/FFIEC/OFAC, links in README) into vector search —
+confirms our `DocChunk`/policy_search design, just needs real content now.
+
+**Evidence simulation is required, not optional:** customer/analyst replies are NOT provided
+by the exam. The agent must simulate them itself and record the assumption in
+`evidence_requests[].assumed_response`. Our `tools.py` mock action APIs already do this shape
+of thing — needs its output format aligned to `evidence_requests`.
+
+**Rules:** never use the original public Kaggle IEEE-CIS files to recover outcomes
+(disqualification). Every ID in answers must exist in this dataset.
+
+**Consequence:** `src/agent/state.py`, `nodes.py` (esp. `decision_matrix`), and `schema/01_schema.gsql`
+all need rework to match this exact vocabulary before Phase 2/6 can proceed correctly.
 
 ---
 
@@ -125,17 +202,28 @@ Pre-install all. **`INSTALL QUERY` takes minutes each and must never run at demo
 
 ## Phase 5 — Agent
 
-- [ ] MCP session helper — **one session held for the whole run**
+- [ ] MCP session helper — **one session held for the whole run** *(no MCP server exists
+      yet — `src/agent/tools.py` has a documented seam for it, mock backend for now)*
 - [ ] MCP tool list verified empirically; allowlist confirmed active
-- [ ] Case record model with **`nba_before` and `nba_after` as first-class fields**
-- [ ] Nodes: `trigger` · `open_case` · `gather_evidence` · `assess` · `check_sufficiency` ·
+- [x] Case record model with **`nba_before` and `nba_after` as first-class fields**
+      (`src/agent/state.py::CaseState`)
+- [x] Nodes: `trigger` · `open_case` · `gather_evidence` · `assess` · `check_sufficiency` ·
       `request_evidence` · `decide_action` · `explain` · `update_memory`
-- [ ] `RiskAssessment` returns `confidence` + explicit `evidence_gaps`
-- [ ] Decision matrix: risk × confidence × reversibility → action + approval route
-- [ ] Mock APIs for simulated actions (validate txn, step-up auth, analyst request)
-- [ ] Evidence-gathering loop capped at 2 rounds
-- [ ] End-to-end on ONE case, with tracing
-- [ ] **Verified: agent requests more evidence at least once, and `nba_before` ≠ `nba_after` somewhere**
+      (`src/agent/nodes.py`, wired in `src/agent/graph.py`)
+- [x] `RiskAssessment` returns `confidence` + explicit `evidence_gaps`
+      *(stubbed heuristic in `src/agent/llm.py`, not a real Gemini call yet)*
+- [x] Decision matrix: risk × confidence × reversibility → action + approval route
+      (`src/agent/nodes.py::decision_matrix`, explicit code, not prompt text)
+- [x] Mock APIs for simulated actions (validate txn, step-up auth, analyst request)
+      (`src/agent/tools.py`)
+- [x] Evidence-gathering loop capped at 2 rounds — verified: with a forced
+      always-uncertain assessment, the loop still terminates at `round_count == 2` and
+      routes to `decide_action` regardless of confidence
+- [x] End-to-end on ONE case, run via `python -m src.agent.graph`
+      (mock tools + stubbed LLM only — no TigerGraph, no real Gemini)
+- [x] **Verified: agent requests more evidence at least once, and `nba_before` ≠ `nba_after`**
+      — the `card-ambig-042` mock scenario does exactly this
+      (`gather_more_evidence`/`analyst` → `no_action`/`auto` after owner confirmation)
 
 ---
 
