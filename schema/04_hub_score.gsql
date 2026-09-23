@@ -1,0 +1,20 @@
+// =============================================================================
+// FraudGraph — hub_score attribute for PageRank centrality
+// =============================================================================
+// Adds a precomputed centrality score to Card and DeviceProfile, written by
+// queries/pagerank_hub_score.gsql (a real, iterative graph algorithm run once
+// over the whole graph, not per-case) rather than computed live on every
+// agent call. This is what satisfies "use TigerGraph graph algorithms" as a
+// distinct capability from the traversal queries in schema/queries/ (which
+// answer "who is connected to this specific card/device", not "who is
+// structurally central across the whole network").
+// =============================================================================
+
+USE GLOBAL
+
+CREATE GLOBAL SCHEMA_CHANGE JOB add_hub_score {
+  ALTER VERTEX DeviceProfile ADD ATTRIBUTE (hub_score DOUBLE DEFAULT 0.0);
+  ALTER VERTEX Card ADD ATTRIBUTE (hub_score DOUBLE DEFAULT 0.0);
+}
+
+RUN GLOBAL SCHEMA_CHANGE JOB add_hub_score

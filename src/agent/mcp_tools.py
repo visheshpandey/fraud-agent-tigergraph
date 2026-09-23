@@ -106,3 +106,12 @@ class McpToolbox:
     async def policy_search(self, query_vector: list[float], k: int = 5) -> dict:
         result = await self._run_query("policy_search", {"query_vector": query_vector, "k": k})
         return result[0] if result else {}
+
+    async def hub_score(self, vertex_type: str, vertex_id: str) -> float:
+        """Reads the precomputed PageRank centrality score (schema/queries/
+        pagerank_hub_score.gsql) for a Card or DeviceProfile -- a real, global
+        graph algorithm's output, not a per-call traversal. High relative to
+        peers = structurally central in the card<->device network, which is
+        what a fraud ring producing many-cards-through-one-device looks like."""
+        data = await self._call("get_node", vertex_type=vertex_type, vertex_id=vertex_id)
+        return float(data.get("attributes", {}).get("hub_score", 0.0))

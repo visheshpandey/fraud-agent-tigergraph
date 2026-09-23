@@ -71,9 +71,23 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
 
     profile = await tb.customer_profile(customer_id)
     window = await tb.card_transaction_window(card_id, limit_n=30)
+    # In-person transactions have no device row, which pandas reads back as
+    # NaN (float) rather than an empty string -- and NaN is truthy in Python,
+    # so every `if device_id` check below would silently treat "no device" as
+    # "has a device" unless normalized to None here, once, at the source.
     device_id = flagged.get("device_id")
-    device_result = await tb.device_shared_accounts(device_id) if isinstance(device_id, str) and device_id else {}
+    if not isinstance(device_id, str):
+        device_id = None
+
+    device_result = await tb.device_shared_accounts(device_id) if device_id else {}
     ring = await tb.fraud_ring_component(flagged_id)
+
+    # Real graph algorithm (schema/queries/pagerank_hub_score.gsql), precomputed
+    # once over the whole graph -- structural centrality, distinct from the
+    # direct-connection traversals above. Baseline ~0.33 avg / ~103 max observed
+    # across the full graph; >2.0 (~6x average) is treated as notably elevated.
+    card_hub = await tb.hub_score("Card", card_id)
+    device_hub = await tb.hub_score("DeviceProfile", device_id) if device_id else 0.0
 
     query_text = (
         f"{case['trigger_type']}: {case['trigger_text']} Card {card_id}, "
@@ -146,6 +160,28 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
         if ring_cards else "No other cards found on the same device as this flagged transaction "
         "(either no shared device use, or this was an in-person transaction with no device record)."
     )
+
+    # PageRank centrality (real graph algorithm, precomputed once over the
+    # whole graph) -- a structural signal independent of the direct-connection
+    # traversals above. ~0.33 average, ~103 max observed graph-wide.
+    HUB_ELEVATED = 2.0
+    hub_anomaly = (not device_is_generic) and (card_hub > HUB_ELEVATED or device_hub > HUB_ELEVATED)
+    if card_hub > HUB_ELEVATED or device_hub > HUB_ELEVATED:
+        narrative_parts.append(
+            f"Graph centrality (PageRank, precomputed over the full graph, ~0.33 average): "
+            f"this card scores {card_hub:.2f}, this device scores {device_hub:.2f}. "
+            + ("Notably elevated for both" if card_hub > HUB_ELEVATED and device_hub > HUB_ELEVATED
+               else f"Notably elevated for the {'card' if card_hub > HUB_ELEVATED else 'device'}")
+            + (" -- but the device fingerprint is generic, so treat this as weak/non-diagnostic."
+               if device_is_generic and device_hub > HUB_ELEVATED else
+               " -- structurally central in the card/device network, consistent with a hub used by a ring.")
+        )
+    else:
+        narrative_parts.append(
+            f"Graph centrality (PageRank): card {card_hub:.2f}, device {device_hub:.2f} -- both near the "
+            "graph-wide average (~0.33), not structurally unusual."
+        )
+
     if similar_cases:
         narrative_parts.append(
             f"Similar prior cases retrieved from case memory: {list(zip(similar_ids, similar_outcomes))}."
@@ -158,13 +194,17 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
     ctx = {
         "exposure_usd": exposure_usd,
         "customer_response": "none",
-        "shared_origin": shared_origin or bool(known_fraud_cards),
+        "shared_origin": shared_origin or bool(known_fraud_cards) or hub_anomaly,
         "shared_origin_desc": (
             f"device shared with {len(shared_customers)} other customers" if shared_origin
-            else f"{len(known_fraud_cards)} connected cards with confirmed fraud" if known_fraud_cards else ""
+            else f"{len(known_fraud_cards)} connected cards with confirmed fraud" if known_fraud_cards
+            else "elevated PageRank centrality (structural hub in the card/device network)" if hub_anomaly
+            else ""
         ),
         "already_cleared_large_purchase": abs(flagged.get("amount", 0)) > 100,
-        "single_signal": not (shared_origin or known_fraud_cards),
+        "single_signal": not (shared_origin or known_fraud_cards or hub_anomaly),
+        "card_hub_score": card_hub,
+        "device_hub_score": device_hub,
         "recurring_pattern_dispute": False,
         "two_plus_cards_confirmed_fraud": len(known_fraud_cards) >= 2,
         "credentials_confirmed_compromised": False,

@@ -1,0 +1,56 @@
+// Real, iterative graph algorithm (bipartite PageRank), run ONCE over the
+// whole graph and written back as a precomputed Card.hub_score /
+// DeviceProfile.hub_score attribute -- not recomputed per agent call. This is
+// what actually answers "who is structurally central in this network" as
+// opposed to the traversal queries (card_transaction_window,
+// device_shared_accounts, fraud_ring_component), which only answer
+// "who is directly connected to this one card/device". A card or device with
+// an unusually high hub_score relative to its peers is exactly the kind of
+// structural anomaly a real fraud ring produces (many otherwise-unrelated
+// cards funneling through a small number of devices).
+//
+// Algorithm: standard PageRank score-passing, alternated across the
+// Card <-> DeviceProfile bipartite projection (via Card-MADE->Transaction
+// -FROM_DEVICE->DeviceProfile, both UNDIRECTED so no reverse-edge names are
+// needed). Damping factor and iteration count are parameters so this can be
+// re-run cheaply if the graph is reloaded.
+USE GRAPH FraudGraph
+
+CREATE QUERY pagerank_hub_score(INT max_iter=8, DOUBLE damping=0.85) FOR GRAPH FraudGraph {
+  SumAccum<DOUBLE> @score;
+  SumAccum<DOUBLE> @recvd;
+  SumAccum<INT> @degree;
+
+  Cards = {Card.*};
+  Devices = {DeviceProfile.*};
+
+  // One-time degree count (number of transactions touching each card / device)
+  // and score initialization -- everyone starts equal.
+  Cards = SELECT c FROM Cards:c -(MADE:e)- Transaction:t
+          ACCUM c.@degree += 1
+          POST-ACCUM c.@score = 1.0;
+
+  Devices = SELECT d FROM Devices:d -(FROM_DEVICE:e)- Transaction:t
+            ACCUM d.@degree += 1
+            POST-ACCUM d.@score = 1.0;
+
+  INT i = 0;
+  WHILE i < max_iter DO
+    Devices = SELECT d FROM Cards:c -(MADE:e1)- Transaction:t -(FROM_DEVICE:e2)- DeviceProfile:d
+              ACCUM d.@recvd += c.@score / (c.@degree + 1)
+              POST-ACCUM d.@score = (1.0 - damping) + damping * d.@recvd, d.@recvd = 0.0;
+
+    Cards = SELECT c FROM Devices:d -(FROM_DEVICE:e2)- Transaction:t -(MADE:e1)- Card:c
+            ACCUM c.@recvd += d.@score / (d.@degree + 1)
+            POST-ACCUM c.@score = (1.0 - damping) + damping * c.@recvd, c.@recvd = 0.0;
+
+    i = i + 1;
+  END;
+
+  Cards = SELECT c FROM Cards:c POST-ACCUM c.hub_score = c.@score;
+  Devices = SELECT d FROM Devices:d POST-ACCUM d.hub_score = d.@score;
+
+  PRINT Cards.size() AS cards_scored, Devices.size() AS devices_scored;
+}
+
+INSTALL QUERY pagerank_hub_score
