@@ -191,9 +191,23 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
 
     exposure_usd = round(sum(abs(t.get("attributes", t).get("amount", 0)) for t in txns if isinstance(t, dict) and t.get("attributes", t).get("transaction_id") == flagged_id) or abs(flagged.get("amount", 0)), 2)
 
+    # A customer_report trigger IS the customer's denial ("I never made this
+    # purchase") -- it isn't a separate verification step the agent had to go
+    # request. Recognizing that from round 1 routes through R2 (customer
+    # denies) instead of falling through to R1's generic single-signal
+    # verification logic, which cites the wrong rule and can skip R2's
+    # exposure/shared-origin-triggered FILE_REPORT clause entirely.
+    initial_customer_response = "denied" if case["trigger_type"] == "customer_report" else "none"
+    if initial_customer_response == "denied":
+        narrative_parts.append(
+            "This investigation was triggered by the customer's own report that they did not make the "
+            "flagged transaction -- that report IS the denial referenced in policy R2, not a pending "
+            "verification step."
+        )
+
     ctx = {
         "exposure_usd": exposure_usd,
-        "customer_response": "none",
+        "customer_response": initial_customer_response,
         "shared_origin": shared_origin or bool(known_fraud_cards) or hub_anomaly,
         "shared_origin_desc": (
             f"device shared with {len(shared_customers)} other customers" if shared_origin

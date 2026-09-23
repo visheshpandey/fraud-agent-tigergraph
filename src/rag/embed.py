@@ -28,13 +28,17 @@ EMBED_MODEL = "models/gemini-embedding-001"
 EMBED_DIM = 768
 
 
-def embed_text(text: str, task_type: str = "SEMANTIC_SIMILARITY", retries: int = 5) -> list[float]:
+def embed_text(text: str, task_type: str = "SEMANTIC_SIMILARITY", retries: int = 2) -> list[float]:
     """Free tier caps embed_content at ~100 requests/minute AND ~1000/day.
-    A per-minute 429 is worth a ~65s wait; a per-DAY 429 will still be a 429
-    in 65s (or in 5 minutes) since it doesn't reset until the daily window
-    rolls over -- fail immediately in that case rather than burning minutes
-    per call. Callers (src/eval/run_cases.py) treat this as a soft failure
-    and degrade gracefully rather than losing the whole case over it.
+    Only 2 short retries, not a long 65s-per-attempt backoff: callers
+    (src/eval/run_cases.py::gather_evidence) treat a failure here as a soft,
+    expected failure and degrade gracefully (skip case-memory/policy
+    retrieval for that case) rather than losing the whole case over it -- so
+    there is no reason to block a 20-case run for 5+ minutes per call on a
+    rate limit that, in practice, has sometimes persisted for the rest of a
+    day's testing. A real per-minute 429 clears in the two ~20s waits below;
+    a day-scale 429 (with or without "PerDay" in the message -- the exact
+    wording varies) fails fast either way.
     """
     last_err = None
     for attempt in range(1, retries + 1):
@@ -48,6 +52,5 @@ def embed_text(text: str, task_type: str = "SEMANTIC_SIMILARITY", retries: int =
             last_err = e
             if "PerDay" in str(e):
                 raise RuntimeError("Daily embed_content quota exhausted") from e
-            is_429 = "ResourceExhausted" in type(e).__name__ or "429" in str(e)
-            time.sleep(65 if is_429 else 2 * attempt)
+            time.sleep(20)
     raise RuntimeError(f"Embedding failed after {retries} attempts") from last_err

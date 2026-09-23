@@ -37,11 +37,14 @@ def _narrative(row: pd.Series) -> str:
     )
 
 
-def _embed_batch(texts: list[str], retries: int = 5) -> list[list[float]]:
-    """Free tier is capped at 100 embed_content requests/minute regardless of
-    how many texts ride in one batch call — each call is 1 request. A 429
-    here means we're past that cap; back off for a full minute rather than
-    the short exponential delay used for other transient errors."""
+def _embed_batch(texts: list[str], retries: int = 3) -> list[list[float]]:
+    """Free tier is capped at 100 embed_content requests/minute AND ~1000/day.
+    In practice the 429 seen while building this sometimes persisted across
+    many minutes of retrying at 65s/attempt -- if the daily cap is what's
+    actually hit, no amount of waiting within one run fixes it. Retry
+    modestly (a real per-minute limit clears in ~40s) and let this job fail
+    fast and get re-run later (it's idempotent) rather than block for
+    several minutes on every batch on a bad day."""
     last_err = None
     for attempt in range(1, retries + 1):
         try:
@@ -52,9 +55,8 @@ def _embed_batch(texts: list[str], retries: int = 5) -> list[list[float]]:
             return res["embedding"]
         except Exception as e:  # noqa: BLE001
             last_err = e
-            wait = 65 if "ResourceExhausted" in type(e).__name__ or "429" in str(e) else 3 * attempt
-            print(f"    batch attempt {attempt}/{retries} failed: {type(e).__name__} — waiting {wait}s", flush=True)
-            time.sleep(wait)
+            print(f"    batch attempt {attempt}/{retries} failed: {type(e).__name__} — waiting 20s", flush=True)
+            time.sleep(20)
     raise RuntimeError("Embedding batch failed") from last_err
 
 
