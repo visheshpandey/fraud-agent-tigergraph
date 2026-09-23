@@ -1,0 +1,110 @@
+{
+  "case_id": "HHG-015",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.85,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3464869"
+    ],
+    "first_suspicious_txn_id": "3464869",
+    "connected_card_ids": [
+      "C11413-K1",
+      "C11227-K2",
+      "C00681-K1",
+      "C01155-K2",
+      "C05704-K2",
+      "C02881-K1",
+      "C05292-K1"
+    ],
+    "connected_device_profiles": [
+      "D-347e7400df2b"
+    ],
+    "exposure_usd": 599.94,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C03042-K1)",
+        "entity_ids": [
+          "3464869"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Transaction 3464869 ($599.94, online) was flagged by the real-time model with a high risk score of 0.77 due to the customer's volatile usage profile\u2014exhibiting 43 distinct devices and 22 billing regions\u2014alongside a device footprint linked to multiple other cards with confirmed fraud histories. Based on this evidence, the system classified the activity as card-not-present fraud with an 0.85 probability. Per bank policy on high-confidence syndicate fraud involving shared compromised devices, the recommended actions are to block the card, create an investigative case, file a suspicious activity report, and monitor all connected cards.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-015"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 8 other customers"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R6: shared origin \u2014 device shared with 8 other customers"
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 8 other customers"
+      }
+    ],
+    "final": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 8 other customers"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R6: shared origin \u2014 device shared with 8 other customers"
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 8 other customers"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": true,
+    "reason": "R6: shared origin \u2014 device shared with 8 other customers",
+    "narrative": "The real-time fraud monitoring system flagged online transaction 3464869 for $599.94 with an elevated risk score of 0.77. Investigation revealed significant behavioral anomalies, including the use of 43 distinct devices and 22 billing regions across the customer's history, alongside direct device-sharing links to multiple cards with confirmed fraud histories. Consequently, additional identity and device verification evidence was requested to confirm the cardholder's authorization. Under bank policy (Rule FR-7.2 regarding high-risk device velocity and shared fraudulent infrastructure), the transaction is recommended for permanent block and the account for restriction pending full verification.",
+    "subjects": [
+      "C03042",
+      "C03042-K1",
+      "C11413-K1",
+      "C11227-K2",
+      "C00681-K1"
+    ],
+    "total_amount_usd": 599.94,
+    "activity_dates": [
+      "2016-11-17",
+      "2016-11-17"
+    ]
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 10,
+  "tokens": 0,
+  "latency_s": 35.12
+}

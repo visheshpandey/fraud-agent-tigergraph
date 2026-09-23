@@ -1,0 +1,63 @@
+{
+  "case_id": "HHG-010",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.12,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C10434-K1)",
+        "entity_ids": [
+          "3506725"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-0546",
+      "CC-0234",
+      "CC-0010"
+    ],
+    "summary": "Real-time monitoring flagged a $1,000.03 online transaction (ID 3506725) due to a high risk score of 0.90. Although case history and a generic device fingerprint yielded no definitive fraud signals, the unusual spike following a series of recent online authorizations warrants verification. In accordance with the bank's protocol, the recommended action is to verify the transaction directly with the customer to confirm legitimacy before taking further restrictive steps.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-010"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.12 rests on a single signal, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.12 rests on a single signal, verify before blocking"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 9,
+  "tokens": 0,
+  "latency_s": 19.7
+}

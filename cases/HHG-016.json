@@ -1,0 +1,71 @@
+{
+  "case_id": "HHG-016",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.85,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3534820"
+    ],
+    "first_suspicious_txn_id": "3534820",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 59.67,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C09988-K1)",
+        "entity_ids": [
+          "3534820"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Investigation triggered by customer C09988 disputing an online $59.67 charge (transaction 3534820) resulted in a fraud verdict with an 0.85 probability, indicating card-not-present fraud. Evidence evaluated included the transaction details, the customer's profile showing 19 distinct devices across history, and recent low-risk activity, while the associated device fingerprint was discounted as non-diagnostic due to shared use among 158 customers. Additional evidence was not requested as the customer report and transaction profile provided sufficient signal. In accordance with the bank's fraud policy, the final actions of blocking the card and creating a case were triggered to secure the account and document the unauthorized activity.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-016"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+      }
+    ],
+    "final": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 9,
+  "tokens": 0,
+  "latency_s": 32.99
+}

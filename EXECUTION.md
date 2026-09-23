@@ -16,14 +16,21 @@
 
 ## Current State
 
-**Last updated:** 2026-09-22
-**Phase:** 3 done, entering 4 — full dataset is LOADED and VERIFIED on Savanna (counts below
-match expected exactly); 6 GSQL agent-tool queries installed; Phase 5 agent skeleton already
-matches the exact answer format.
-**Next action:** Phase 4 — chunk the Fraud Policy + 5 patterns text, embed via Gemini
-(`gemini-embedding-001`, truncated to 768 dim), load into `DocChunk.emb`; embed closed-case
-narratives into `ClosedCase.emb`
-**Blocked on:** nothing — clear to proceed
+**Last updated:** 2026-09-23
+**Phase:** 6 COMPLETE — all 20 benchmark cases investigated and written to `cases/` at repo
+root, every file schema-validated (0 problems: no missing fields, valid pattern enum, valid
+approval routes, no runaway `connected_card_ids`). 10 fraud / 10 legitimate verdicts —
+matches the README's "half the cases are legitimate" design exactly.
+**Next action:** Phase 8 — spot-check 2-3 cases by hand against policy, record demo video,
+publish blog post + social post (both drafted), submit the form
+**Blocked on:** nothing — remaining work is human-facing deliverables, not engineering
+
+**Mid-benchmark incident (resolved):** the Savanna workspace auto-suspended (60min idle,
+Auto Start was Disabled) during a long gap in this session, which surfaced as a 500 error on
+even the token endpoint — looked like a bug, was actually the workspace being fully stopped.
+Fixed by manually restarting `Workspace-1` in the Savanna console; all data was intact on
+restart (verified `Transaction` count still 590,742 before resuming). **Lesson: enable Auto
+Start**, or expect to manually restart after any extended idle gap.
 
 **Live graph verified (2026-09-22):**
 ```
@@ -355,17 +362,29 @@ docstring as the place to add them if time remains.
 ## Phase 6 — Benchmark
 
 - [x] `src/eval/run_cases.py` — built, real MCP + real Gemini + real graph writes
-- [~] All 20 cases → `cases//` — **in progress.** First full pass: 8/20 succeeded outright,
-      12/20 failed on the daily `embed_content` quota (see Phase 4). Re-running the 12
-      failures with a graceful-degradation fix (below) plus 2 more (HHG-005, HHG-010) that
-      "succeeded" but hit the ring-noise bug below — 14 total being re-run now
+- [x] All 20 cases → `cases/` at repo root. **DONE and validated 2026-09-23.** Full pass
+      history: first pass 8/20 (12 hit the daily `embed_content` quota); second pass filled
+      12/20 with graceful degradation; a mid-run Savanna auto-suspend (see Current State)
+      interrupted the last batch with 3 never run + 2 needing a bug-fix re-run; final pass
+      after restarting the workspace completed all remaining 5. **Zero-problem validation
+      across all 20**: every required field present, pattern enum valid, every route in
+      {auto,L1,L2}, no `connected_card_ids` runaway (max 7, well under the 15 threshold).
+      **10 fraud / 10 legitimate** — matches the README's explicit 50/50 design.
 - [x] Each case also **written to the graph** — `conn.upsertVertex("InvestigationCase", ...)`
       + `INVOLVES_CUSTOMER`/`ON_CARD` edges, confirmed via `written_to_graph: true` in output
 - [x] SAR generated where policy requires one — verified on at least one fraud case with
       `FILE_REPORT` in final actions (SAR narrative generated via a dedicated LLM call)
-- [ ] 3 cases spot-checked by hand against the policy docs — not yet done, do once all 20
-      answer files are final
-- [x] **Run this early, not at the deadline** — running now, ~1.3 days before deadline
+- [ ] 3 cases spot-checked by hand against the policy docs — **do this next**, before
+      recording the demo video
+- [x] **Run this early, not at the deadline** — completed 2026-09-23, ~1.3 days before deadline
+
+**Verdict/pattern distribution (all 20, final):** legitimate — HHG-001,002,005,007,010,012,
+013,014,017,020 (10). fraud — HHG-003,018 (out_of_region_use); HHG-004,006,008,009,011,015,
+016,019 (card_not_present_fraud) (10). **Note:** `card_not_present_fraud` dominates the fraud
+verdicts (8/10) and fraud probabilities cluster tightly at 0.85 — plausibly the LLM
+defaulting to a "round" high-confidence number rather than truly calibrating per-case.
+Not fixed (would need prompt iteration under the same tight LLM quota); worth mentioning
+as a known calibration limitation if asked, not something to claim is more precise than it is.
 
 **Real bug caught and fixed via this run — worth understanding for the write-up:**
 `fraud_ring_component` (Phase 3) was already re-seeded from a single flagged transaction's
@@ -398,23 +417,33 @@ heavy job (Phase 4's closed-case embed) to get full evidence quality on all case
 
 ## Phase 7 — UI
 
-- [ ] Streamlit: case selector, investigation timeline, evidence panel
-- [ ] Confidence / uncertainty indicator
-- [ ] **NBA before-vs-after comparison** — the money shot on camera
-- [ ] Approval route display
-- [ ] Fraud-ring subgraph visualization
+- [x] Streamlit: case selector, investigation timeline, evidence panel — `app/streamlit_app.py`,
+      reads `cases/*.json` (all 20 now present, so this is live-testable)
+- [x] Confidence / uncertainty indicator — color-coded by fraud_probability threshold
+- [x] **NBA before-vs-after comparison** — initial vs. final actions, side by side
+- [x] Approval route display — color-coded auto/L1/L2 badges
+- [ ] Fraud-ring subgraph visualization — **not built**; the dashboard shows evidence as text,
+      not a rendered subgraph. Descoped given time; would strengthen the demo if time allows
 - [ ] Next.js — **stretch only**, do not start unless Phases 0–8 are done
+- [ ] **Not yet actually run** (`streamlit run app/streamlit_app.py`) against the real 20
+      files — do this before the demo recording, not for the first time on camera
 
 ---
 
 ## Phase 8 — Submission *(budget 2 hours; required, plus 10% of score)*
 
-- [ ] GitHub repo public; README explains architecture + how TigerGraph is used
-- [ ] Demo video 3–5 min, end to end, **recorded with Savanna already warm**
-- [ ] Blog post: what built / architecture / TigerGraph usage / agentic capabilities /
-      learnings / what you'd improve
-- [ ] Social post on X or LinkedIn, links blog or demo, **tags @TigerGraphDB**
+- [x] GitHub repo — **local only, not yet pushed to a remote / made public.** All work is
+      committed locally (`git log`); pushing to GitHub and setting it public is still needed
+- [x] README explains architecture + how TigerGraph is used — `README.md` at repo root
+- [ ] Demo video 3–5 min, end to end, **recorded with Savanna already warm** — not started,
+      needs the user (screen recording)
+- [x] Blog post drafted — full draft covering what built / architecture / TigerGraph usage /
+      agentic capabilities / learnings / what we'd improve, in a shared doc; **not yet
+      published** to an actual blog platform
+- [x] Social post drafted — text ready to paste for X/LinkedIn, tags @TigerGraphDB; **not
+      yet posted**
 - [ ] **Submit:** https://forms.gle/yxXzqSULGgZ9VUF56 — **team lead only, by Sept 24 11:59 PM IST**
+      — needs the video + published blog/social links first
 
 ---
 

@@ -1,0 +1,106 @@
+{
+  "case_id": "HHG-011",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.85,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3583368"
+    ],
+    "first_suspicious_txn_id": "3583368",
+    "connected_card_ids": [
+      "C05678-K1",
+      "C05595-K1",
+      "C03938-K1"
+    ],
+    "connected_device_profiles": [
+      "D-f5e3dab905c2"
+    ],
+    "exposure_usd": 131.3,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C11923-K2)",
+        "entity_ids": [
+          "3583368"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Customer C11923 reported an unauthorized $131.30 online transaction (Ref. 3583368), prompting an investigation that uncovered a high fraud probability (0.85) tied to a card-not-present pattern. Evidence evaluation revealed that the transaction's device profile is linked to multiple customers and shares a device with cards that have confirmed fraud histories, validating the customer's claim. Consequently, the recommended actions\u2014blocking the card, creating a case, filing a report, and monitoring connected cards\u2014are executed in alignment with standard fraud mitigation policy to secure the account and investigate broader device exposure.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-011"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 4 other customers"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R6: shared origin \u2014 device shared with 4 other customers"
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 4 other customers"
+      }
+    ],
+    "final": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 4 other customers"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R6: shared origin \u2014 device shared with 4 other customers"
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 4 other customers"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": true,
+    "reason": "R6: shared origin \u2014 device shared with 4 other customers",
+    "narrative": "Customer C11923 reported an unauthorized $131.30 online purchase (Transaction 3583368) on their card, prompting a fraud investigation. Analysis of the customer's profile revealed widespread usage across 1,509 distinct devices and 32 billing regions, suggesting shared or compromised account access. Crucially, the device associated with the flagged transaction (D-f5e3dab905c2) is linked to four different customers, including two cards with confirmed fraud histories (C05678-K1 and C05595-K1). This device-sharing nexus with known fraudulent accounts provides strong corroborating evidence of third-party compromise. Additional transactional or device-verification evidence was not requested as the shared-device fraud footprint was sufficient to validate the customer's claim. In accordance with the bank's fraud policy regarding linked fraudulent devices (Rule FP-DEV-04), the transaction is deemed unauthorized, and the recommended actions include issuing a permanent card block, refunding the disputed amount, and placing the account under enhanced monitoring.",
+    "subjects": [
+      "C11923",
+      "C11923-K2",
+      "C05678-K1",
+      "C05595-K1",
+      "C03938-K1"
+    ],
+    "total_amount_usd": 131.3,
+    "activity_dates": [
+      "2016-12-29",
+      "2016-12-29"
+    ]
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 10,
+  "tokens": 0,
+  "latency_s": 75.45
+}

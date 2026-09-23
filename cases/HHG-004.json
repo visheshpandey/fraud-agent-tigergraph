@@ -1,0 +1,108 @@
+{
+  "case_id": "HHG-004",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.95,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3583227"
+    ],
+    "first_suspicious_txn_id": "3583227",
+    "connected_card_ids": [
+      "C05031-K2",
+      "C04248-K2",
+      "C07518-K2",
+      "C02222-K1",
+      "C03095-K2"
+    ],
+    "connected_device_profiles": [
+      "D-dc5649749ab5"
+    ],
+    "exposure_usd": 128.33,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C08106-K1)",
+        "entity_ids": [
+          "3583227"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Customer C08106 reported unauthorized online transaction 3583227 ($128.33), prompting a fraud investigation that utilized transaction metadata, customer spending history, and device linkage data. Evidence revealed that the device used for the disputed purchase is linked to six different customers and shares a high-risk profile with four other cards that have confirmed fraud history. Consequently, the fraud model assigned a 0.95 probability of card-not-present fraud. Following the bank's fraud policy, the recommended actions\u2014blocking the card, creating a case, filing a report, and monitoring connected cards\u2014were executed to mitigate further risk across the associated accounts.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-004"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.95 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+      }
+    ],
+    "final": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.95 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": true,
+    "reason": "R6: shared origin \u2014 device shared with 6 other customers",
+    "narrative": "Customer C08106 reported a disputed online purchase of $128.33 (Transaction 3583227), stating they never authorized the charge. Investigation of the transaction history revealed severe device sharing anomalies: the customer's account has accessed 78 distinct devices, and the device used for this transaction is linked to six different customers and shares history with four cards carrying confirmed fraud. Additional evidence was not requested as the device linkage provides conclusive risk indicators. In accordance with bank fraud policy Rule 4.2 regarding high-risk shared infrastructure and confirmed fraud association, the transaction is classified as unauthorized, warranting immediate card closure, customer reimbursement, and placement of the account on high-risk monitoring.",
+    "subjects": [
+      "C08106",
+      "C08106-K1",
+      "C05031-K2",
+      "C04248-K2",
+      "C07518-K2"
+    ],
+    "total_amount_usd": 128.33,
+    "activity_dates": [
+      "2016-12-29",
+      "2016-12-29"
+    ]
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 10,
+  "tokens": 0,
+  "latency_s": 35.67
+}

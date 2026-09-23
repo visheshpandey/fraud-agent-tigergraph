@@ -1,0 +1,59 @@
+{
+  "case_id": "HHG-014",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.05,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C13487-K1)",
+        "entity_ids": [
+          "3478561"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "This investigation was triggered by an analyst's request to review transaction 3478561 ($74.96, online) on card C13487-K1 due to concerns over an unusual device profile. Evidence evaluated included the customer's overall profile (85 total transactions, $4,881.62 spend), recent transaction history across multiple billing regions, and device fingerprint data showing the associated device (D-1c4e293f579b) is linked to 52 customers and is therefore non-diagnostic. Additional evidence regarding cross-card usage on the same device yielded no related accounts. In accordance with the bank's fraud policy, the transaction is assessed as legitimate with a low risk score of 0.05, but because an analyst review was specifically requested for unusual device patterns, the recommended action is to verify the activity with the customer.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-014"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.05 rests on a single signal, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.05 rests on a single signal, verify before blocking"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 9,
+  "tokens": 0,
+  "latency_s": 42.23
+}

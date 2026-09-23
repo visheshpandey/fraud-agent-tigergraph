@@ -1,0 +1,59 @@
+{
+  "case_id": "HHG-017",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.15,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C04570-K1)",
+        "entity_ids": [
+          "3450629"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "The fraud investigation utilized the real-time risk score (0.57) of transaction 3450629, along with the customer's historical profile showing high device and billing region fragmentation (21 distinct devices and 16 billing regions across 59 total transactions) and recent online activity. Additional device profile evidence was evaluated, but the associated device fingerprint (D-6a9d8e4488cb) was deemed non-diagnostic as it is shared across 299 customers and treated as a generic device. Although the final verdict assigned a low fraud probability (0.15) with no malicious pattern, customer verification was triggered due to the elevated risk score and fragmented behavior profile, aligning with standard bank fraud policy for ambiguous online transactions.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-017"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.15 rests on a single signal, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.15 rests on a single signal, verify before blocking"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 9,
+  "tokens": 0,
+  "latency_s": 37.97
+}

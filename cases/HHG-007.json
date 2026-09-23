@@ -1,0 +1,63 @@
+{
+  "case_id": "HHG-007",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.12,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C09933-K2)",
+        "entity_ids": [
+          "3514948"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-0483",
+      "CC-0248",
+      "CC-0487"
+    ],
+    "summary": "The real-time fraud model flagged transaction 3514948 ($111.92) with a high risk score of 0.87, though the customer profile shows established history and similar past cases (CC-0483, CC-0248, CC-0487) were ultimately cleared as legitimate. Additional evidence was requested to verify cardholder intent rather than relying solely on the imperfect risk score. Because the probability of fraud is low (0.12) and no definitive denial or policy violation has been established yet, the recommended action is to verify the transaction with the customer per standard operating procedure.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-007"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.12 rests on a single signal, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.12 rests on a single signal, verify before blocking"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 9,
+  "tokens": 0,
+  "latency_s": 12.17
+}

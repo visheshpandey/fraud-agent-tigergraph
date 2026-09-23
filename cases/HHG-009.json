@@ -1,0 +1,75 @@
+{
+  "case_id": "HHG-009",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.85,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3581141"
+    ],
+    "first_suspicious_txn_id": "3581141",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 30.02,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C08299-K1)",
+        "entity_ids": [
+          "3581141"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-0389",
+      "CC-0035",
+      "CC-0351"
+    ],
+    "summary": "Customer C08299 reported an unauthorized online purchase of $30.02 (transaction 3581141), prompting a fraud investigation with a high fraud probability of 0.85 for card-not-present fraud. Evidence evaluated includes the customer's dispute message, transaction metadata showing an online charge from billing region 203.0, a profile spanning 21 distinct devices and 7 regions, and historical case memory matching confirmed fraud patterns (CC-0389, CC-0035, CC-0351). Because the customer explicitly denies the transaction, policy rule R2 applies, mandating that the card be blocked and a formal case be created.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-009"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+      }
+    ],
+    "final": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 9,
+  "tokens": 0,
+  "latency_s": 12.52
+}

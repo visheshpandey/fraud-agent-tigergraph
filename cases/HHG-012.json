@@ -1,0 +1,63 @@
+{
+  "case_id": "HHG-012",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.05,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "See full evidence narrative recorded on the graph case vertex",
+        "source": "graph",
+        "ref": "query:card_transaction_window(C05876-K2)",
+        "entity_ids": [
+          "3553342"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-0354",
+      "CC-0042",
+      "CC-0522"
+    ],
+    "summary": "Transaction 3553342 was flagged by the real-time risk model with a score of 0.55 due to diffuse regional activity, despite the customer's long history and established device profile. Evidence from similar cleared historical cases and the low calculated fraud probability (0.05) indicate the activity is likely legitimate. Therefore, per standard procedure, no immediate card block or case creation is warranted yet; instead, the action is to `VERIFY_WITH_CUSTOMER` to confirm the transaction. If the customer subsequently denies the charge, policy rule R2 would then require escalating to a full block and case creation.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-012"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.05 rests on a single signal, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability 0.05 rests on a single signal, verify before blocking"
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
+  "tool_calls": 9,
+  "tokens": 0,
+  "latency_s": 12.55
+}
