@@ -425,8 +425,9 @@ heavy job (Phase 4's closed-case embed) to get full evidence quality on all case
 - [ ] Fraud-ring subgraph visualization — **not built**; the dashboard shows evidence as text,
       not a rendered subgraph. Descoped given time; would strengthen the demo if time allows
 - [ ] Next.js — **stretch only**, do not start unless Phases 0–8 are done
-- [ ] **Not yet actually run** (`streamlit run app/streamlit_app.py`) against the real 20
-      files — do this before the demo recording, not for the first time on camera
+- [x] **Verified running** against the real 20 files — `streamlit run app/streamlit_app.py`,
+      booted clean, HTTP 200, no runtime errors in the log. Case selector shows all 20;
+      verdict bar chart correctly shows 10/10 fraud/legitimate
 
 ---
 
