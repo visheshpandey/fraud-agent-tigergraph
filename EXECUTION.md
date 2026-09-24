@@ -16,14 +16,28 @@
 
 ## Current State
 
-**Last updated:** 2026-09-23
-**Phase:** 6 COMPLETE — all 20 benchmark cases investigated and written to `cases/` at repo
-root, every file schema-validated (0 problems: no missing fields, valid pattern enum, valid
-approval routes, no runaway `connected_card_ids`). 10 fraud / 10 legitimate verdicts —
-matches the README's "half the cases are legitimate" design exactly.
-**Next action:** Phase 8 — spot-check 2-3 cases by hand against policy, record demo video,
-publish blog post + social post (both drafted), submit the form
-**Blocked on:** nothing — remaining work is human-facing deliverables, not engineering
+**Last updated:** 2026-09-24 (submission day)
+**Phase:** 6 COMPLETE, hardened by manual spot-check. All 20 cases in `cases/`, re-validated
+after finding and fixing 2 real bugs via hand review (see below). 0 schema problems, 10
+fraud / 10 legitimate, every SAR narrative's cited rule now matches its actual decision reason.
+Also added: a real TigerGraph graph algorithm (PageRank hub_score), a fraud-ring subgraph
+visualization in the dashboard.
+**Next action:** Phase 8 — record demo video, publish blog post + social post (both drafted),
+push repo to GitHub, submit the form. **Deadline is TODAY, 11:59 PM IST.**
+**Blocked on:** nothing engineering-side — remaining work is human-facing deliverables only
+
+**Bugs found via manual spot-check (do this, it works):**
+1. `customer_report`-triggered cases never applied policy R2 (the customer's complaint IS
+   the denial R2 refers to, but the code only set `customer_response="denied"` via a
+   simulated follow-up round that never ran for a case resolved in round 1). Affected up
+   to 8/20 cases' rule citations. Fixed in `src/eval/run_cases.py`.
+2. A card's own high PageRank centrality (`card_hub_score`) was triggering a false
+   fraud-ring accusation (R6, FILE_REPORT) on ordinary high-volume shoppers — a card
+   touching many devices just means an active customer, not a ring. Only *device*
+   centrality (many different cards through one device) is a real ring signal. Caused a
+   fabricated SAR on a legitimate $111.92 transaction (HHG-007) before the fix. Also fixed
+   a matching bug where the SAR narrative and case summary would independently re-guess a
+   policy rule number instead of using the one the decision system actually used.
 
 **Mid-benchmark incident (resolved):** the Savanna workspace auto-suspended (60min idle,
 Auto Start was Disabled) during a long gap in this session, which surfaced as a 500 error on
