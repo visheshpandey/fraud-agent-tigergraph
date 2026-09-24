@@ -24,11 +24,11 @@
       }
     ],
     "similar_prior_cases": [
-      "CC-0389",
       "CC-0035",
-      "CC-0351"
+      "CC-0351",
+      "CC-0389"
     ],
-    "summary": "Customer C08299 reported an unauthorized online purchase of $30.02 (transaction 3581141), prompting a fraud investigation with a high fraud probability of 0.85 for card-not-present fraud. Evidence evaluated includes the customer's dispute message, transaction metadata showing an online charge from billing region 203.0, a profile spanning 21 distinct devices and 7 regions, and historical case memory matching confirmed fraud patterns (CC-0389, CC-0035, CC-0351). Because the customer explicitly denies the transaction, policy rule R2 applies, mandating that the card be blocked and a formal case be created.",
+    "summary": "Customer C08299 reported that they did not make the disputed $30.02 online purchase (transaction 3581141), which aligns with similar confirmed fraud cases in memory and an 85% fraud probability. Following policy R2, because the customer explicitly denied the transaction, additional verification is not required; instead, the recommended actions are to immediately block the card and create a formal case. No further evidence requests were necessary since the customer report directly satisfies the denial criteria under the bank's fraud rules.",
     "written_to_graph": true,
     "graph_case_id": "HHG-009"
   },
@@ -38,24 +38,24 @@
       {
         "action": "BLOCK_CARD",
         "route": "L1",
-        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+        "reason": "R2: customer denied the transaction"
       }
     ],
     "final": [
       {
         "action": "BLOCK_CARD",
         "route": "L1",
-        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+        "reason": "R2: customer denied the transaction"
       }
     ],
     "what_changed": "nothing"
@@ -71,5 +71,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 9,
   "tokens": 0,
-  "latency_s": 12.52
+  "latency_s": 24.12
 }

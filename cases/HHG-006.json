@@ -5,7 +5,7 @@
     "verdict": "fraud",
     "fraud_probability": 0.85,
     "pattern": "card_not_present_fraud",
-    "pattern_description": "Unrecognized online card-not-present transaction reported by the cardholder.",
+    "pattern_description": "",
     "affected_txn_ids": [
       "3476682"
     ],
@@ -23,8 +23,12 @@
         ]
       }
     ],
-    "similar_prior_cases": [],
-    "summary": "The investigation was triggered by customer C07297 reporting an unauthorized $482.12 online purchase (transaction 3476682). Evidence reviewed includes the customer's profile of 261 total transactions across 37 distinct billing regions, recent card activity, and a generic device fingerprint linked to 543 customers that was treated as non-diagnostic. The high fraud probability of 0.85 and card-not-present fraud pattern confirmed the report. Consequently, the recommended actions to block the card and create a formal case follow standard bank fraud policy for verified unauthorized customer disputes.",
+    "similar_prior_cases": [
+      "CC-0340",
+      "CC-0272",
+      "CC-0206"
+    ],
+    "summary": "This investigation was triggered by customer C07297 reporting that they never authorized the online transaction of $482.12 (transaction 3476682). Evidence reviewed includes the customer's transaction history, device profile, and similar prior confirmed fraud cases, which collectively support a card-not-present fraud pattern with an 85% probability. Because the customer directly denied the transaction, policy R2 mandates blocking the card and creating a formal case. Additional evidence or reporting was not required since the exposure remains under $1,000 and the device fingerprint was deemed non-diagnostic.",
     "written_to_graph": true,
     "graph_case_id": "HHG-006"
   },
@@ -34,24 +38,24 @@
       {
         "action": "BLOCK_CARD",
         "route": "L1",
-        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+        "reason": "R2: customer denied the transaction"
       }
     ],
     "final": [
       {
         "action": "BLOCK_CARD",
         "route": "L1",
-        "reason": "R1: probability 0.85 clears the single-signal verification threshold"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "3a: fraud probability reached the 0.30 case-opening threshold"
+        "reason": "R2: customer denied the transaction"
       }
     ],
     "what_changed": "nothing"
@@ -67,5 +71,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 9,
   "tokens": 0,
-  "latency_s": 43.22
+  "latency_s": 37.03
 }

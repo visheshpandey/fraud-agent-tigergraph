@@ -21,12 +21,8 @@
         ]
       }
     ],
-    "similar_prior_cases": [
-      "CC-0180",
-      "CC-0479",
-      "CC-0539"
-    ],
-    "summary": "Transaction 3478782 ($292.36, online) was flagged by the real-time model with a high risk score of 0.79, deviating from the customer's typical low-value spending history. Evidence used included the customer's profile showing 17 distinct devices and recent online activity, alongside historical case memory indicating similar ambiguous cases were cleared. Because a high risk score alone is not a verdict and card-not-present fraud guidelines classify single unusual online purchases as ambiguous, the policy requires verification rather than immediate closure. Therefore, the recommended action is to `VERIFY_WITH_CUSTOMER` in accordance with the bank's fraud investigation procedures.",
+    "similar_prior_cases": [],
+    "summary": "Transaction 3478782 ($292.36) was flagged by the real-time risk model with a score of 0.79, deviating from the customer's typical low-risk online spend pattern. Evidence evaluated included the customer's transaction history, graph centrality metrics, and device profiling, which showed normal network centrality despite the elevated risk score. Additional verification was requested because the transaction lacked a linked device profile and originated from an unrecorded billing region. Pursuant to the bank's fraud policy, the recommended action to `VERIFY_WITH_CUSTOMER` was triggered to confirm authorization before final settlement.",
     "written_to_graph": true,
     "graph_case_id": "HHG-002"
   },
@@ -59,5 +55,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 9,
   "tokens": 0,
-  "latency_s": 13.1
+  "latency_s": 135.13
 }

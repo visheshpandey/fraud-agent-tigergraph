@@ -162,19 +162,30 @@ async def gather_evidence(case: dict, tb: McpToolbox) -> tuple[str, dict]:
     )
 
     # PageRank centrality (real graph algorithm, precomputed once over the
-    # whole graph) -- a structural signal independent of the direct-connection
-    # traversals above. ~0.33 average, ~103 max observed graph-wide.
+    # whole graph). IMPORTANT ASYMMETRY, found via manual spot-check of
+    # HHG-007: a high CARD hub_score just means this card touches many
+    # distinct devices, which is exactly what a normal high-volume shopper
+    # looks like (the card in HHG-007 has 2,792 transactions) -- it is not a
+    # ring signal on its own and must never trigger shared_origin/R6. A high
+    # DEVICE hub_score means many DIFFERENT cards funnel through one device,
+    # which is the actual ring-like structural anomaly. Card centrality is
+    # reported for context only; only device centrality can flip hub_anomaly.
     HUB_ELEVATED = 2.0
-    hub_anomaly = (not device_is_generic) and (card_hub > HUB_ELEVATED or device_hub > HUB_ELEVATED)
+    hub_anomaly = (not device_is_generic) and device_hub > HUB_ELEVATED
     if card_hub > HUB_ELEVATED or device_hub > HUB_ELEVATED:
         narrative_parts.append(
             f"Graph centrality (PageRank, precomputed over the full graph, ~0.33 average): "
             f"this card scores {card_hub:.2f}, this device scores {device_hub:.2f}. "
-            + ("Notably elevated for both" if card_hub > HUB_ELEVATED and device_hub > HUB_ELEVATED
-               else f"Notably elevated for the {'card' if card_hub > HUB_ELEVATED else 'device'}")
-            + (" -- but the device fingerprint is generic, so treat this as weak/non-diagnostic."
-               if device_is_generic and device_hub > HUB_ELEVATED else
-               " -- structurally central in the card/device network, consistent with a hub used by a ring.")
+            + (f"The card's own score is high but reflects transaction volume "
+               f"({len(txns)} recent transactions) -- NOT a ring signal by itself. "
+               if card_hub > HUB_ELEVATED else "")
+            + (
+                "The device's score is elevated but the fingerprint is generic, so treat it as "
+                "weak/non-diagnostic." if device_is_generic and device_hub > HUB_ELEVATED
+                else "The device's score is notably elevated -- many different cards funnel through "
+                     "this one device, consistent with a hub used by a ring."
+                if device_hub > HUB_ELEVATED else ""
+            )
         )
     else:
         narrative_parts.append(
@@ -292,9 +303,19 @@ async def run_one_case(case: dict, tb: McpToolbox) -> dict:
     file_report = any(a.action == "FILE_REPORT" for a in final_actions)
     sar = {"file": False, "reason": "", "narrative": "", "subjects": [], "total_amount_usd": 0.0, "activity_dates": []}
     if file_report:
+        file_report_reason = next((a.reason for a in final_actions if a.action == "FILE_REPORT"), "")
+        # Give the LLM the ACTUAL programmatic reason FILE_REPORT fired, rather
+        # than letting it re-derive its own rule citation from the raw evidence
+        # narrative -- caught via manual spot-check (HHG-007) citing R2 in the
+        # SAR narrative when the real decision_matrix reason was R6. The
+        # narrative must explain THIS reason, not invent a different one.
         sar_prompt = (
             f"Write a suspicious activity report narrative (6-12 sentences: who, what, when, where, how, "
-            f"why suspicious) for this case.\n{narrative}"
+            f"why suspicious) for this case.\n{narrative}\n\n"
+            f"The report is being filed for this specific reason, per the bank's decision system "
+            f"(not your own inference): \"{file_report_reason}\". Your narrative must explain and be "
+            f"consistent with THIS reason -- do not cite a different policy rule or a different basis "
+            f"for suspicion than the one given here."
         )
         sar_text = llm.generate_explanation(sar_prompt)
         flagged = _TXN_INDEX.get(ctx["flagged_txn_id"], {})
@@ -308,10 +329,18 @@ async def run_one_case(case: dict, tb: McpToolbox) -> dict:
         }
         tool_calls += 1
 
+    # Pass the actual {action, reason} pairs, not just action names -- an
+    # earlier version only gave names and the LLM would independently guess a
+    # policy rule to justify them, which could disagree with the rule the
+    # decision system actually used (caught via manual spot-check, HHG-003
+    # and HHG-007). The summary must explain THESE reasons, not invent others.
+    final_reasons = [f"{a.action} ({a.reason})" for a in final_actions]
     explanation_prompt = (
         f"Summarize this fraud investigation in 2-6 sentences for an analyst.\n{narrative}\n"
         f"Verdict: {assessment.verdict}, probability {assessment.fraud_probability:.2f}, pattern {assessment.pattern}.\n"
-        f"Final actions: {[a.action for a in final_actions]}."
+        f"Final actions, with the actual policy reason each one fired for (per the bank's decision "
+        f"system, not your own inference -- explain these reasons, do not substitute different ones): "
+        f"{final_reasons}."
     )
     summary = llm.generate_explanation(explanation_prompt)
     tool_calls += 1

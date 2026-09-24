@@ -3,7 +3,7 @@
   "case": {
     "status": "closed_fraud",
     "verdict": "fraud",
-    "fraud_probability": 0.95,
+    "fraud_probability": 0.85,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
@@ -11,11 +11,11 @@
     ],
     "first_suspicious_txn_id": "3583227",
     "connected_card_ids": [
-      "C05031-K2",
-      "C04248-K2",
-      "C07518-K2",
       "C02222-K1",
-      "C03095-K2"
+      "C03095-K2",
+      "C05031-K2",
+      "C07518-K2",
+      "C04248-K2"
     ],
     "connected_device_profiles": [
       "D-dc5649749ab5"
@@ -31,8 +31,12 @@
         ]
       }
     ],
-    "similar_prior_cases": [],
-    "summary": "Customer C08106 reported unauthorized online transaction 3583227 ($128.33), prompting a fraud investigation that utilized transaction metadata, customer spending history, and device linkage data. Evidence revealed that the device used for the disputed purchase is linked to six different customers and shares a high-risk profile with four other cards that have confirmed fraud history. Consequently, the fraud model assigned a 0.95 probability of card-not-present fraud. Following the bank's fraud policy, the recommended actions\u2014blocking the card, creating a case, filing a report, and monitoring connected cards\u2014were executed to mitigate further risk across the associated accounts.",
+    "similar_prior_cases": [
+      "CC-0086",
+      "CC-0535",
+      "CC-0283"
+    ],
+    "summary": "This investigation was triggered by customer C08106 reporting that they did not authorize the $128.33 online transaction (3583227). Evidence analysis revealed that the transaction's device profile is shared with six different customers and four other cards with confirmed fraud history. Under bank policy R2, because the customer denied the transaction and it connects to a shared device profile, actions `BLOCK_CARD`, `CREATE_CASE`, and `FILE_REPORT` were executed. Additionally, `MONITOR_CONNECTED_CARDS` was triggered per rule R6 due to the shared device origin among multiple cards.",
     "written_to_graph": true,
     "graph_case_id": "HHG-004"
   },
@@ -42,17 +46,17 @@
       {
         "action": "BLOCK_CARD",
         "route": "L1",
-        "reason": "R1: probability 0.95 clears the single-signal verification threshold"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "FILE_REPORT",
         "route": "L2",
-        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+        "reason": "R2: connects to device shared with 6 other customers"
       },
       {
         "action": "MONITOR_CONNECTED_CARDS",
@@ -64,17 +68,17 @@
       {
         "action": "BLOCK_CARD",
         "route": "L1",
-        "reason": "R1: probability 0.95 clears the single-signal verification threshold"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+        "reason": "R2: customer denied the transaction"
       },
       {
         "action": "FILE_REPORT",
         "route": "L2",
-        "reason": "R6: shared origin \u2014 device shared with 6 other customers"
+        "reason": "R2: connects to device shared with 6 other customers"
       },
       {
         "action": "MONITOR_CONNECTED_CARDS",
@@ -86,14 +90,14 @@
   },
   "sar": {
     "file": true,
-    "reason": "R6: shared origin \u2014 device shared with 6 other customers",
-    "narrative": "Customer C08106 reported a disputed online purchase of $128.33 (Transaction 3583227), stating they never authorized the charge. Investigation of the transaction history revealed severe device sharing anomalies: the customer's account has accessed 78 distinct devices, and the device used for this transaction is linked to six different customers and shares history with four cards carrying confirmed fraud. Additional evidence was not requested as the device linkage provides conclusive risk indicators. In accordance with bank fraud policy Rule 4.2 regarding high-risk shared infrastructure and confirmed fraud association, the transaction is classified as unauthorized, warranting immediate card closure, customer reimbursement, and placement of the account on high-risk monitoring.",
+    "reason": "R2: connects to device shared with 6 other customers",
+    "narrative": "Customer C08106 reported an unauthorized online purchase of $128.33 (transaction 3583227), triggering this fraud investigation. Evidence reviewed includes the disputed transaction details, the customer's account profile showing high device fragmentation (78 distinct devices), and graph analysis linking the transaction's device (D-dc5649749ab5) to six different customers and four cards with confirmed fraud histories. Because the customer denied the transaction and the activity connects to a shared device profile linked to prior fraud, policy rule R2 applies. Consequently, the recommended actions are to block the card, create a case, and file a report.",
     "subjects": [
       "C08106",
       "C08106-K1",
-      "C05031-K2",
-      "C04248-K2",
-      "C07518-K2"
+      "C02222-K1",
+      "C03095-K2",
+      "C05031-K2"
     ],
     "total_amount_usd": 128.33,
     "activity_dates": [
@@ -104,5 +108,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 10,
   "tokens": 0,
-  "latency_s": 35.67
+  "latency_s": 20.66
 }

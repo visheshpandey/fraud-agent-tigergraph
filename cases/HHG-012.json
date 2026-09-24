@@ -22,11 +22,11 @@
       }
     ],
     "similar_prior_cases": [
+      "CC-0522",
       "CC-0354",
-      "CC-0042",
-      "CC-0522"
+      "CC-0042"
     ],
-    "summary": "Transaction 3553342 was flagged by the real-time risk model with a score of 0.55 due to diffuse regional activity, despite the customer's long history and established device profile. Evidence from similar cleared historical cases and the low calculated fraud probability (0.05) indicate the activity is likely legitimate. Therefore, per standard procedure, no immediate card block or case creation is warranted yet; instead, the action is to `VERIFY_WITH_CUSTOMER` to confirm the transaction. If the customer subsequently denies the charge, policy rule R2 would then require escalating to a full block and case creation.",
+    "summary": "Transaction 3553342 was flagged by the real-time risk model with a score of 0.55 due to an in-person charge in a new billing region, evaluated alongside the customer's high historical mobility of 42 distinct billing regions. Evidence reviewed includes the transaction details, a high-volume customer profile showing extensive travel, normal graph centrality metrics, and three similar prior cases that were all ultimately cleared. Because the model score is merely an indicator rather than a verdict and historical patterns suggest legitimate travel, the investigation followed standard protocol to contact the cardholder. Consequently, the recommended action is to `VERIFY_WITH_CUSTOMER` to confirm authorization before deciding whether to close or escalate the case under bank policy.",
     "written_to_graph": true,
     "graph_case_id": "HHG-012"
   },
@@ -59,5 +59,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 9,
   "tokens": 0,
-  "latency_s": 12.55
+  "latency_s": 56.69
 }

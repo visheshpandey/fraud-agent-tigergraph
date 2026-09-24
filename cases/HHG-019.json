@@ -11,10 +11,10 @@
     ],
     "first_suspicious_txn_id": "3503878",
     "connected_card_ids": [
-      "C06224-K2",
-      "C01104-K2",
+      "C01983-K1",
       "C11309-K1",
-      "C01983-K1"
+      "C01104-K2",
+      "C06224-K2"
     ],
     "connected_device_profiles": [
       "D-d8d6f92018f3"
@@ -32,10 +32,10 @@
     ],
     "similar_prior_cases": [
       "CC-0483",
-      "CC-0487",
-      "CC-0539"
+      "CC-0539",
+      "CC-0487"
     ],
-    "summary": "The investigation analyzed a high-risk online transaction ($99.92, risk score 0.90) that was flagged under card-not-present fraud patterns. Evidence revealed heavy device sharing, with the transaction's device linked to five different customers and four other cards that all carry confirmed fraud history. Under fraud policy R2, a confirmed connection to a shared device profile and another card's fraud mandates blocking the card, creating a case, and filing a report. Consequently, recommended actions include blocking the card, creating a case, filing a report, and monitoring connected cards.",
+    "summary": "Real-time risk modeling flagged a $99.92 online transaction (3503878) with a high risk score of 0.90, supported by evidence that the associated device is shared across five customers and linked to four cards with confirmed-fraud history. No additional evidence was requested because the existing network links and transaction profile were sufficient to establish a fraud probability of 0.85. In accordance with bank policy, `BLOCK_CARD` and `CREATE_CASE` were triggered because the 0.85 fraud probability clears the single-signal verification threshold under Rule 1 and the shared device origin activates Rule 6. Furthermore, `FILE_REPORT` and `MONITOR_CONNECTED_CARDS` were executed pursuant to Rule 6 due to the high-risk shared device profile connecting multiple fraudulent accounts.",
     "written_to_graph": true,
     "graph_case_id": "HHG-019"
   },
@@ -90,13 +90,13 @@
   "sar": {
     "file": true,
     "reason": "R6: shared origin \u2014 device shared with 5 other customers",
-    "narrative": "This investigation evaluated a $99.92 online transaction flagged by the real-time risk model with a high score of 0.90. Evidence reviewed includes the customer's high-velocity profile (notably 48 distinct devices and 33 billing regions across past activity) and the fact that the current device (D-d8d6f92018f3) is linked to five different customers, with four other associated cards carrying confirmed fraud histories. Because this case connects to a shared fraudulent device profile, policy R2 requires escalating our response beyond a simple verification. Consequently, the recommended actions are to block the card, create a case, and file a formal report.",
+    "narrative": "An online transaction of $99.92 was flagged by the real-time risk model with a score of 0.90 due to rule R6 (shared origin), as the device used is linked to five different customers and four associated cards with confirmed fraud histories. To investigate this potential syndicate activity, evidence including customer transaction history, device profiles, and network linkages was analyzed. No additional evidence requests were necessary as the shared device risk was conclusively established through graph data. In accordance with bank fraud policy R6 regarding shared device exposure and known fraud connections, the recommended action is to block the card and file a formal report.",
     "subjects": [
       "C07987",
       "C07987-K2",
-      "C06224-K2",
-      "C01104-K2",
-      "C11309-K1"
+      "C01983-K1",
+      "C11309-K1",
+      "C01104-K2"
     ],
     "total_amount_usd": 99.92,
     "activity_dates": [
@@ -107,5 +107,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 10,
   "tokens": 0,
-  "latency_s": 31.64
+  "latency_s": 21.65
 }

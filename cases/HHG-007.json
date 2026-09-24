@@ -3,7 +3,7 @@
   "case": {
     "status": "closed_legitimate",
     "verdict": "legitimate",
-    "fraud_probability": 0.12,
+    "fraud_probability": 0.05,
     "pattern": "none",
     "pattern_description": "",
     "affected_txn_ids": [],
@@ -26,7 +26,7 @@
       "CC-0248",
       "CC-0487"
     ],
-    "summary": "The real-time fraud model flagged transaction 3514948 ($111.92) with a high risk score of 0.87, though the customer profile shows established history and similar past cases (CC-0483, CC-0248, CC-0487) were ultimately cleared as legitimate. Additional evidence was requested to verify cardholder intent rather than relying solely on the imperfect risk score. Because the probability of fraud is low (0.12) and no definitive denial or policy violation has been established yet, the recommended action is to verify the transaction with the customer per standard operating procedure.",
+    "summary": "Transaction 3514948 ($111.92, in-person) was flagged by the real-time risk model with a score of 0.87, drawing on the customer's transaction history, billing regions, and card profile evidence. Additional evidence was not requested because case memory showed similar prior transactions cleared successfully, yielding a legitimate probability of 0.05. Consequently, per Rule R1 (probability 0.05 rests on a single signal, verify before blocking), the system recommends verifying the transaction with the customer before taking further action.",
     "written_to_graph": true,
     "graph_case_id": "HHG-007"
   },
@@ -36,14 +36,14 @@
       {
         "action": "VERIFY_WITH_CUSTOMER",
         "route": "auto",
-        "reason": "R1: probability 0.12 rests on a single signal, verify before blocking"
+        "reason": "R1: probability 0.05 rests on a single signal, verify before blocking"
       }
     ],
     "final": [
       {
         "action": "VERIFY_WITH_CUSTOMER",
         "route": "auto",
-        "reason": "R1: probability 0.12 rests on a single signal, verify before blocking"
+        "reason": "R1: probability 0.05 rests on a single signal, verify before blocking"
       }
     ],
     "what_changed": "nothing"
@@ -59,5 +59,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 9,
   "tokens": 0,
-  "latency_s": 12.17
+  "latency_s": 26.88
 }

@@ -11,13 +11,13 @@
     ],
     "first_suspicious_txn_id": "3464869",
     "connected_card_ids": [
-      "C11413-K1",
-      "C11227-K2",
       "C00681-K1",
-      "C01155-K2",
-      "C05704-K2",
       "C02881-K1",
-      "C05292-K1"
+      "C05292-K1",
+      "C11413-K1",
+      "C05704-K2",
+      "C01155-K2",
+      "C11227-K2"
     ],
     "connected_device_profiles": [
       "D-347e7400df2b"
@@ -33,8 +33,12 @@
         ]
       }
     ],
-    "similar_prior_cases": [],
-    "summary": "Transaction 3464869 ($599.94, online) was flagged by the real-time model with a high risk score of 0.77 due to the customer's volatile usage profile\u2014exhibiting 43 distinct devices and 22 billing regions\u2014alongside a device footprint linked to multiple other cards with confirmed fraud histories. Based on this evidence, the system classified the activity as card-not-present fraud with an 0.85 probability. Per bank policy on high-confidence syndicate fraud involving shared compromised devices, the recommended actions are to block the card, create an investigative case, file a suspicious activity report, and monitor all connected cards.",
+    "similar_prior_cases": [
+      "CC-0009",
+      "CC-0099",
+      "CC-0034"
+    ],
+    "summary": "Real-time risk scoring flagged a $599.94 online transaction with a high score of 0.77, consistent with card-not-present fraud patterns. Investigation revealed that the transaction's device is linked to eight different customers and shares history with five cards previously flagged for confirmed fraud. In accordance with bank policy R1, the high fraud probability of 0.85 clears the single-signal verification threshold to warrant blocking the card. Furthermore, policies R2 and R6 mandate creating a formal case, filing a report, and monitoring connected cards due to the high-risk shared device profile.",
     "written_to_graph": true,
     "graph_case_id": "HHG-015"
   },
@@ -89,13 +93,13 @@
   "sar": {
     "file": true,
     "reason": "R6: shared origin \u2014 device shared with 8 other customers",
-    "narrative": "The real-time fraud monitoring system flagged online transaction 3464869 for $599.94 with an elevated risk score of 0.77. Investigation revealed significant behavioral anomalies, including the use of 43 distinct devices and 22 billing regions across the customer's history, alongside direct device-sharing links to multiple cards with confirmed fraud histories. Consequently, additional identity and device verification evidence was requested to confirm the cardholder's authorization. Under bank policy (Rule FR-7.2 regarding high-risk device velocity and shared fraudulent infrastructure), the transaction is recommended for permanent block and the account for restriction pending full verification.",
+    "narrative": "This fraud investigation reviewed online transaction 3464869 for $599.94, which was flagged by the real-time risk model with a score of 0.77. The evaluation utilized evidence from the customer's transaction history, device profile, and network connections, specifically identifying that the device used for this purchase is linked to eight different customers and shares a history with five confirmed fraud cards. Additional evidence regarding broader card network connections and similar cleared cases was also reviewed to contextualize the risk. Following the bank's fraud policy under rule R6, the report is filed due to a shared origin, as the transaction device is shared with multiple other customers. Consequently, the recommended actions are to block the card, create a case, and file a formal report given the connection to a shared device profile with confirmed fraud history.",
     "subjects": [
       "C03042",
       "C03042-K1",
-      "C11413-K1",
-      "C11227-K2",
-      "C00681-K1"
+      "C00681-K1",
+      "C02881-K1",
+      "C05292-K1"
     ],
     "total_amount_usd": 599.94,
     "activity_dates": [
@@ -106,5 +110,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 10,
   "tokens": 0,
-  "latency_s": 35.12
+  "latency_s": 20.27
 }

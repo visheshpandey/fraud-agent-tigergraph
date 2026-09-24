@@ -21,8 +21,12 @@
         ]
       }
     ],
-    "similar_prior_cases": [],
-    "summary": "The fraud investigation utilized the real-time risk score (0.57) of transaction 3450629, along with the customer's historical profile showing high device and billing region fragmentation (21 distinct devices and 16 billing regions across 59 total transactions) and recent online activity. Additional device profile evidence was evaluated, but the associated device fingerprint (D-6a9d8e4488cb) was deemed non-diagnostic as it is shared across 299 customers and treated as a generic device. Although the final verdict assigned a low fraud probability (0.15) with no malicious pattern, customer verification was triggered due to the elevated risk score and fragmented behavior profile, aligning with standard bank fraud policy for ambiguous online transactions.",
+    "similar_prior_cases": [
+      "CC-0345",
+      "CC-0318",
+      "CC-0546"
+    ],
+    "summary": "The real-time fraud model flagged transaction 3450629 ($100.09, online) with a moderate risk score of 0.57, while the customer profile exhibited high behavioral variance, including 16 distinct billing regions and 21 distinct devices. Evidence evaluated included the transaction's risk score, recent card activity showing a burst of online purchases, a generic device fingerprint treated as non-diagnostic, and similar historical cases that were cleared. Additional evidence was not requested as the pattern aligned with ambiguous single-purchase indicators. In accordance with card-not-present fraud guidelines (policies R1\u2013R4), because a single unusual online purchase is ambiguous and the verdict assessed the transaction as likely legitimate (probability 0.15), the recommended action is to verify the transaction with the customer (`VERIFY_WITH_CUSTOMER`).",
     "written_to_graph": true,
     "graph_case_id": "HHG-017"
   },
@@ -55,5 +59,5 @@
   "stop_reason": "Fraud probability was extreme enough on initial evidence to act without further verification.",
   "tool_calls": 9,
   "tokens": 0,
-  "latency_s": 37.97
+  "latency_s": 34.24
 }
