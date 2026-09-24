@@ -1,5 +1,9 @@
 # Agentic Fraud Investigation Agent
 
+**Live dashboard:** https://fraud-agent-tigergraph-mdma8rvc8pmxygwnib3bma.streamlit.app/
+(all 20 investigated cases — evidence, uncertainty, before/after recommendations, and the
+fraud-ring subgraph for each, browsable directly, no setup required)
+
 Built for the TigerGraph "Agentic Fraud Investigation" hackathon (Hacker House Goa 2026).
 An AI agent that investigates flagged card transactions, decides what a bank should do
 about them, and revises that decision as new evidence comes in — grounded in a real
